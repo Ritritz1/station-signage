@@ -32,6 +32,15 @@
   <script>
     window.TMDB_API_KEY = "1ac6070606f4a415fccbfbcbb78fe224";
     window.TMDB_LANG    = "en-GB";
+    // Autoscale: scale all sizes relative to a 1080p reference height
+    (function(){
+      function setScale(){
+        var s = window.innerHeight / 1080;
+        document.documentElement.style.setProperty('--autoscale', String(s));
+      }
+      setScale();
+      window.addEventListener('resize', setScale);
+    })();
   </script>
   <script src="schedule.js"></script>
   <script src="script.js"></script>
