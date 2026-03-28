@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Station Cinema — Display Board</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app layout">
+    <header class="header">
+      <img class="logo" src="logo.png" alt="Station Cinema">
+      <div class="section-title">Next Stop</div>
+      <div class="clock">
+        <div id="clock-time">--:--</div>
+        <div id="clock-date"></div>
+      </div>
+    </header>
+    <main class="panel today">
+      <div id="today-list" class="list"></div>
+    </main>
+    <aside class="panel info">
+      <h2 id="info-title"></h2>
+      <div class="info-wrap">
+        <img id="info-poster" src="" alt="" style="display:none">
+        <div id="info-body-wrap">
+          <p id="info-body"></p>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <script src="schedule.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
