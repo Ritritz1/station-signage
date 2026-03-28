@@ -2,7 +2,7 @@ name: Update Cinema Schedule
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * 3"
   workflow_dispatch:
 
 permissions:
