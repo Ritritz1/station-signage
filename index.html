@@ -6,8 +6,8 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>The Station Cinema Ã¢ÂÂ Display Board</title>
-  <link rel="stylesheet" href="style.css?v=1774694787409">
+  <title>The Station Cinema - Display Board</title>
+  <link rel="stylesheet" href="style.css?v=20260328c">
 </head>
 <body>
   <div class="app layout">
@@ -35,17 +35,16 @@
   <script>
     window.TMDB_API_KEY = "1ac6070606f4a415fccbfbcbb78fe224";
     window.TMDB_LANG    = "en-GB";
-    // Autoscale: scale all sizes relative to a 1080p reference height
     (function(){
       function setScale(){
         var s = window.innerHeight / 1080;
-        document.documentElement.style.setProperty('--autoscale', String(s));
+        document.documentElement.style.setProperty("--autoscale", String(s));
       }
       setScale();
-      window.addEventListener('resize', setScale);
+      window.addEventListener("resize", setScale);
     })();
   </script>
-  <script src="schedule.js"></script>
-  <script src="script.js"></script>
+  <script src="schedule.js?v=20260328c"></script>
+  <script src="script.js?v=20260328c"></script>
 </body>
 </html>
