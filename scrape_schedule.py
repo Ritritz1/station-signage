@@ -2,7 +2,7 @@
 """
 Scrapes https://www.stationcinema.com/whatson/all
 and writes schedule.js for the Station Cinema signage board.
-Run automatically every Monday by GitHub Actions.
+Run automatically every Wednesday by GitHub Actions.
 """
 import re, urllib.request
 from datetime import datetime
@@ -11,68 +11,84 @@ from collections import defaultdict
 URL = "https://www.stationcinema.com/whatson/all"
 MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
           "july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
-DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 MONTH_NAMES = ["January","February","March","April","May","June",
                "July","August","September","October","November","December"]
-
-def parse_date(text):
-    m = re.search(r"(\d{1,2})\s+(\w+)\s+(\d{4})", text, re.I)
-    if not m: return None
-    day, mon, yr = int(m.group(1)), m.group(2).lower(), int(m.group(3))
-    month = MONTHS.get(mon)
-    if not month: return None
-    return f"{yr:04d}-{month:02d}-{day:02d}"
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode("utf-8", errors="replace")
 
-def extract_showtimes(html):
-    html = re.sub(r"<script[^>]*>.*?<\/script>", " ", html, flags=re.S)
-    html = re.sub(r"<style[^>]*>.*?<\/style>", " ", html, flags=re.S)
-    html = re.sub(r"<[^>]+>", " ", html)
-    html = re.sub(r"&amp;", "&", html)
-    html = re.sub(r"&[a-z]+;", " ", html)
-    html = re.sub(r"\s+", " ", html).strip()
+def parse_date(day, month_name, year):
+    month = MONTHS.get(month_name.lower())
+    if not month: return None
+    return f"{int(year):04d}-{month:02d}-{int(day):02d}"
 
-    parts = html.split("Showtimes", 1)
-    body = parts[1] if len(parts) > 1 else html
+def extract_showtimes(html):
+    # Strip scripts and styles first
+    html = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.S)
+    html = re.sub(r'<style[^>]*>.*?</style>', ' ', html, flags=re.S)
+    # Extract just the showtimes section between "Showtimes" and "Check Our Socials"
+    m = re.search(r'Showtimes(.+?)Check Our Socials', html, re.S)
+    if not m:
+        print("WARNING: Could not find Showtimes section")
+        return {}
+    body = m.group(1)
+    # Remove all HTML tags
+    body = re.sub(r'<[^>]+>', ' ', body)
+    body = re.sub(r'&amp;', '&', body)
+    body = re.sub(r'&[a-z#0-9]+;', ' ', body)
+    body = re.sub(r'[ \t]+', ' ', body)
+    # Normalise line breaks
+    body = re.sub(r'\n+', '\n', body.replace('\r', '\n'))
 
     schedule = defaultdict(lambda: defaultdict(set))
-    positions = [m.start() for m in re.finditer(r"Running time:", body)]
 
-    for i, pos in enumerate(positions):
-        pre = body[max(0, pos - 400):pos]
-        pre = re.sub(r"\d{1,2}:\d{2}", "", pre)
-        pre = re.sub(r"Running time.*", "", pre, flags=re.I)
-        lines = [l.strip() for l in pre.split("  ") if l.strip()]
-        film = None
-        for line in reversed(lines):
-            if len(line) < 3: continue
-            if re.match(r"^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+)$", line, re.I): continue
-            film = line
-            break
-        if not film: continue
+    # Each film block starts with the film title on its own line,
+    # followed by "Running time: N mins", then genre, then date+time lines.
+    # Split on "Running time:" to get blocks, film title precedes each block.
+    # We process the full text linearly.
+    lines = [l.strip() for l in body.split('\n') if l.strip()]
 
-        end = positions[i + 1] if i + 1 < len(positions) else len(body)
-        block = body[pos:end]
+    # Known non-title lines to skip
+    skip_patterns = re.compile(
+        r'^(Running time:|\d|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|'
+        r'Drama|Comedy|Music|Family|Adventure|Animation|Thriller|Romance|Documentary|'
+        r'Biography|Musical|Theatre|Play|Opera|Science|Fiction|Romantic|Fantasy|'
+        r'Now Showing|Coming Soon|Live Events|Senior|Subtitled|Latest|Membership|'
+        r'Private|Gaming|Contact|Gift|Get in Touch|Stay connected|About|FAQ|'
+        r'Telephone|Station Cinema|Restoration|Charity|RECEIVE|TikTok)',
+        re.I
+    )
 
-        date_time_pat = re.compile(
-            r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
-            r"\s+(\d{1,2})\s+(January|February|March|April|May|June|July|"
-            r"August|September|October|November|December)\s+(\d{4})"
-            r"((?:\s*\d{1,2}:\d{2})+)", re.I)
-        for m in date_time_pat.finditer(block):
-            date_key = parse_date(f"{m.group(1)} {m.group(2)} {m.group(3)}")
-            times = re.findall(r"\b(\d{1,2}:\d{2})\b", m.group(4))
+    current_film = None
+    date_time_pat = re.compile(
+        r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+'
+        r'(\d{1,2})\s+(January|February|March|April|May|June|July|'
+        r'August|September|October|November|December)\s+(\d{4})'
+        r'((?:\s*\d{1,2}:\d{2})+)', re.I)
+
+    for line in lines:
+        if skip_patterns.match(line):
+            continue
+        # Check if this line is a date+time line
+        dt_match = date_time_pat.match(line)
+        if dt_match and current_film:
+            date_key = parse_date(dt_match.group(2), dt_match.group(3), dt_match.group(4))
+            times = re.findall(r'\b(\d{1,2}:\d{2})\b', dt_match.group(5))
             if date_key and times:
                 for t in times:
-                    schedule[date_key][film].add(t)
+                    schedule[date_key][current_film].add(t)
+            continue
+        # Otherwise treat as a potential film title if it looks right
+        # Must be at least 3 chars, not all caps (skip genre labels), not a number
+        if len(line) >= 3 and not re.match(r'^[\d:]+$', line):
+            current_film = line
+
     return schedule
 
 def render_schedule_js(schedule):
-    lines = ["/* Auto-generated by scrape_schedule.py — do not edit by hand */",
+    lines = ["/* Auto-generated by scrape_schedule.py */",
              f"/* Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} */",
              "", "window.SCHEDULE = {"]
     for date_key in sorted(schedule.keys()):
@@ -92,7 +108,7 @@ if __name__ == "__main__":
     html = fetch_page()
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found — keeping existing schedule.js")
+        print("WARNING: No schedule data found")
         raise SystemExit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} film/day combinations across {len(schedule)} days")
