@@ -1,4 +1,7 @@
-/* Auto-generated — manual scrape 2026-04-08 */
+/* Auto-generated â manual scrape 2026-04-08 */
+window.TMDB_OVERRIDES = window.TMDB_OVERRIDES || {};
+window.TMDB_OVERRIDES["The Stranger"] = { id: 1429348 };
+
 window.SCHEDULE = {
 
   "2026-04-09": [
