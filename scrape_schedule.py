@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Scrapes https://www.stationcinema.com/whatson/all
-Writes schedule.js for the Station Cinema signage board.
+The page renders showtime data in the raw HTML (not via JS).
 Runs every Wednesday via GitHub Actions.
 """
 import re, urllib.request
@@ -13,48 +13,46 @@ MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
           "july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
 MONTH_NAMES = ["January","February","March","April","May","June",
                "July","August","September","October","November","December"]
-DAYS = {"monday","tuesday","wednesday","thursday","friday","saturday","sunday"}
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-GB,en;q=0.5",
     })
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read().decode("utf-8", errors="replace")
 
-def strip_html(html):
+def extract_showtimes(html):
+    # Strip scripts and styles
     html = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.S)
     html = re.sub(r'<style[^>]*>.*?</style>', ' ', html, flags=re.S)
-    html = re.sub(r'<[^>]+>', ' ', html)
-    html = re.sub(r'&amp;', '&', html)
-    html = re.sub(r'&[a-z#0-9]+;', ' ', html)
-    html = re.sub(r'[ \t]+', ' ', html)
-    return html.strip()
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', ' ', html)
+    text = re.sub(r'&amp;', '&', text)
+    text = re.sub(r'&[a-z#0-9]+;', ' ', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n+', '\n', text)
 
-def extract_showtimes(html):
-    text = strip_html(html)
+    print(f"Text length after strip: {len(text)}")
 
-    # Find the showtimes section
-    start = text.find('Showtimes')
-    end = text.find('Check Our Socials')
-    if start == -1 or end == -1:
-        # Try alternate markers
-        start = text.find('Running time:')
-        end = text.rfind('Running time:') + 500
-        if start == -1:
-            print("DEBUG: Could not find showtimes section")
-            print("DEBUG: First 500 chars:", text[:500])
-            return {}
-    
-    body = text[start:end] if end > start else text[start:start+50000]
+    # Debug: find key markers
+    for marker in ['Showtimes', 'Running time', 'Check Our Socials', 'soldOut', 'whatson']:
+        idx = text.find(marker)
+        print(f"Marker '{marker}' at position: {idx}")
+        if idx > 0:
+            print(f"  Context: {repr(text[max(0,idx-30):idx+50])}")
 
     schedule = defaultdict(lambda: defaultdict(set))
 
-    # Pattern: film blocks separated by "Running time:"
-    # Split on Running time to get blocks
-    blocks = re.split(r'Running time:s*\d+s*mins?', body)
-    
-    # Date+time pattern
+    # The page structure: film title appears before each "Running time: N mins" block
+    # Find all Running time occurrences
+    rt_positions = [m.start() for m in re.finditer(r'Running time:', text, re.IGNORECASE)]
+    print(f"Found {len(rt_positions)} 'Running time:' occurrences")
+
+    if not rt_positions:
+        return {}
+
     date_pat = re.compile(
         r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
         r'\s+(\d{1,2})\s+'
@@ -64,58 +62,49 @@ def extract_showtimes(html):
         re.IGNORECASE
     )
 
-    # Words/phrases that are NOT film titles
-    NOT_TITLE = re.compile(
-        r'^(Running|Now Showing|Coming Soon|Live Events|Senior|Subtitled|Dog Friendly$|'
+    skip = re.compile(
+        r'^(Running|Now Showing|Coming Soon|Live Events|Senior|Subtitled|'
         r'Latest News|Membership|Private Hire|Gaming|Contact|Gift|Get in Touch|'
-        r'Stay connected|About Us|FAQ|Telephone|Restoration|Charity|RECEIVE|TikTok|'
-        r'Check Our|Drama|Comedy|Music|Family|Adventure|Animation|Thriller|Romance|'
-        r'Documentary|Biography|Musical|Theatre|Play|Opera|Science Fiction|Romantic|'
-        r'Fantasy|Nation|Biopic|\d)',
+        r'Stay connected|About|FAQ|Telephone|Restoration|Charity|RECEIVE|TikTok|'
+        r'Drama|Comedy|Music$|Family$|Adventure$|Animation$|Thriller$|Romance$|'
+        r'Documentary$|Biography$|Musical$|Theatre$|Play$|Opera$|Nation|Biopic|'
+        r'Science Fiction|Romantic|Fantasy|Monday|Tuesday|Wednesday|Thursday|'
+        r'Friday|Saturday|Sunday|\d)',
         re.IGNORECASE
     )
 
-    for i, block in enumerate(blocks):
-        if i == 0:
-            continue  # First block is header, skip
-        
-        # The film title is the last meaningful line of the PREVIOUS block
-        prev_block = blocks[i-1]
-        # Clean up and get lines
-        lines = [l.strip() for l in re.split(r'[\n;]|(?<=\d{4})(?=[A-Z])', prev_block) if l.strip()]
-        
+    for i, pos in enumerate(rt_positions):
+        # Get the block AFTER this "Running time:"
+        end_pos = rt_positions[i+1] if i+1 < len(rt_positions) else pos + 5000
+        block = text[pos:end_pos]
+
+        # Get film title from text BEFORE this "Running time:"
+        start_of_prev = rt_positions[i-1] + 200 if i > 0 else 0
+        preceding = text[start_of_prev:pos]
+
+        # Get last meaningful line before "Running time:"
+        lines = [l.strip() for l in preceding.replace('\r','\n').split('\n') if l.strip()]
         film = None
         for line in reversed(lines):
-            if len(line) < 2:
-                continue
-            if NOT_TITLE.match(line):
-                continue
-            if re.match(r'^[\d:]+$', line):
-                continue
-            # Skip pure day names
-            if line.lower() in DAYS:
+            if len(line) < 2 or re.match(r'^[\d:]+$', line) or skip.match(line):
                 continue
             film = line
             break
-        
+
         if not film:
             continue
 
-        # Clean film title - remove trailing genre/misc words
-        film = re.sub(r'\s+(Drama|Comedy|Music|Family|Adventure|Animation|'
-                     r'Thriller|Romance|Documentary|Biography|Musical|Theatre|'
-                     r'Play|Opera|Science Fiction|Romantic|Fantasy).*$', '', film, flags=re.IGNORECASE).strip()
-
-        # Find all date+time occurrences in this block
-        # The page duplicates each date block, so we use a set to deduplicate
+        # Find dates and times in this block
+        seen = set()
         for m in date_pat.finditer(block):
-            day_n = int(m.group(2))
-            month_n = MONTHS.get(m.group(3).lower(), 0)
-            year_n = int(m.group(4))
-            if not month_n:
+            date_key = f"{int(m.group(4)):04d}-{MONTHS.get(m.group(3).lower(),0):02d}-{int(m.group(2)):02d}"
+            if not MONTHS.get(m.group(3).lower()):
                 continue
-            date_key = f"{year_n:04d}-{month_n:02d}-{day_n:02d}"
             times = re.findall(r'\b(\d{1,2}:\d{2})\b', m.group(5))
+            key = (date_key, frozenset(times))
+            if key in seen:
+                continue
+            seen.add(key)
             for t in times:
                 schedule[date_key][film].add(t)
 
