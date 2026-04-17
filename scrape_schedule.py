@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 """
 Scrapes https://www.stationcinema.com/whatson/all
-The page renders showtime data in the raw HTML (not via JS).
+The page renders film titles in ALL CAPS, with dates and times on separate lines.
+
+Structure per film:
+  FILM TITLE (all caps)
+  [blank]
+   Running time: N mins
+  [blank]
+  [optional genre]
+  [blank]
+  Day DD Month YYYY
+  HH:MM
+  HH:MM
+  Day DD Month YYYY
+  HH:MM
+  ...
+
 Runs every Wednesday via GitHub Actions.
 """
 import re, urllib.request
@@ -9,10 +24,57 @@ from datetime import datetime
 from collections import defaultdict
 
 URL = "https://www.stationcinema.com/whatson/all"
-MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
-          "july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
-MONTH_NAMES = ["January","February","March","April","May","June",
-               "July","August","September","October","November","December"]
+
+MONTHS = {
+    "january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
+    "july":7,"august":8,"september":9,"october":10,"november":11,"december":12
+}
+MONTH_NAMES = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+]
+
+# Title case mapping for known films (ALL CAPS -> proper case)
+# Films where simple title-case doesn't work well
+TITLE_FIXES = {
+    "NT LIVE: ALL MY SONS": "NT Live: All My Sons",
+    "NT LIVE: LES LIAISONS DANGEREUSES": "NT Live: Les Liaisons Dangereuses",
+    "NT LIVE: THE PLAYBOY OF THE WESTERN WORLD": "NT Live: The Playboy of the Western World",
+    "NT LIVE: THE AUDIENCE": "NT Live: The Audience",
+    "RBO: THE MAGIC FLUTE": "RBO: The Magic Flute",
+    "RBO: SIEGFRIED": "RBO: Siegfried",
+    "MET OPERA: EUGENE ONEGIN": "MET Opera: Eugene Onegin",
+    "EVGENIJ ONEGIN – TCHAIKOVSKY": "EVGENIJ ONEGIN – Tchaikovsky",
+    "LOHENGRIN – WAGNER": "LOHENGRIN – Wagner",
+    "COSI FAN TUTTE – MOZART": "Cosi Fan Tutte – Mozart",
+    "EPIC: ELVIS PRESLEY IN CONCERT": "EPiC: Elvis Presley in Concert",
+    "DOG FRIENDLY SCREENING: THE DEVIL WEARS PAW-DA 2": "Dog Friendly Screening: The Devil Wears Paw-da 2",
+    "EXHIBITION ON SCREEN : FRIDA KAHLO": "Exhibition On Screen: FRIDA KAHLO",
+    "EXHIBITION ON SCREEN: TURNER & CONSTABLE": "Exhibition On Screen: TURNER & CONSTABLE",
+    "POWER TO THE PEOPLE: JOHN & YOKO LIVE IN NYC": "Power To The People: John & Yoko Live in NYC",
+    "STAR WARS: THE MANDALORIAN AND GROGU": "Star Wars: The Mandalorian and Grogu",
+    "A LIBERTY OF CONSCIENCE": "A Liberty of Conscience",
+}
+
+# Minor words that should stay lowercase in title case
+MINOR = {"a","an","the","and","but","or","for","nor","on","at","to","by","in","of","up","as","is"}
+
+def to_title(s):
+    """Convert ALL CAPS film title to proper title case."""
+    if s in TITLE_FIXES:
+        return TITLE_FIXES[s]
+    words = s.split()
+    result = []
+    for i, w in enumerate(words):
+        if i == 0 or w.lower() not in MINOR:
+            # Preserve all-caps abbreviations like "NT", "RBO", "MET"
+            if len(w) <= 3 and w.isupper() and w.isalpha():
+                result.append(w)
+            else:
+                result.append(w.capitalize())
+        else:
+            result.append(w.lower())
+    return " ".join(result)
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={
@@ -23,90 +85,100 @@ def fetch_page():
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read().decode("utf-8", errors="replace")
 
+def strip_to_text(html):
+    """Strip HTML to plain text."""
+    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.S)
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.S)
+    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.I)
+    html = re.sub(r'<[^>]+>', ' ', html)
+    html = re.sub(r'&amp;', '&', html)
+    html = re.sub(r'&ndash;', '–', html)
+    html = re.sub(r'&[a-z#0-9]+;', ' ', html)
+    html = re.sub(r'[ \t]+', ' ', html)
+    html = re.sub(r' *\n *', '\n', html)
+    html = re.sub(r'\n{3,}', '\n\n', html)
+    return html.strip()
+
 def extract_showtimes(html):
-    # Strip scripts and styles
-    html = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.S)
-    html = re.sub(r'<style[^>]*>.*?</style>', ' ', html, flags=re.S)
-    # Remove HTML tags
-    text = re.sub(r'<[^>]+>', ' ', html)
-    text = re.sub(r'&amp;', '&', text)
-    text = re.sub(r'&[a-z#0-9]+;', ' ', text)
-    text = re.sub(r'[ \t]+', ' ', text)
-    text = re.sub(r'\n+', '\n', text)
+    text = strip_to_text(html)
+    
+    # Find the SHOWTIMES section (rendered page has it in all caps)
+    start = text.upper().find('SHOWTIMES')
+    end = text.find('Check Our Socials')
+    if start == -1:
+        print("ERROR: Could not find SHOWTIMES marker")
+        print("First 500 chars of text:", text[:500])
+        return {}
+    body = text[start:end if end > start else len(text)]
+    print(f"Showtimes section: {len(body)} chars")
 
-    print(f"Text length after strip: {len(text)}")
+    lines = [l.strip() for l in body.split('\n')]
 
-    # Debug: find key markers
-    for marker in ['Showtimes', 'Running time', 'Check Our Socials', 'soldOut', 'whatson']:
-        idx = text.find(marker)
-        print(f"Marker '{marker}' at position: {idx}")
-        if idx > 0:
-            print(f"  Context: {repr(text[max(0,idx-30):idx+50])}")
+    DATE_PAT = re.compile(
+        r'^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
+        r'\s+(\d{1,2})\s+'
+        r'(January|February|March|April|May|June|July|'
+        r'August|September|October|November|December)'
+        r'\s+(\d{4})$', re.IGNORECASE
+    )
+    TIME_PAT = re.compile(r'^\d{1,2}:\d{2}$')
+    RT_PAT = re.compile(r'^Running time:', re.IGNORECASE)
+
+    # Words/lines to skip that are not film titles
+    SKIP = re.compile(
+        r'^(Running time|SHOWTIMES|Now Showing|Coming Soon|Live Events|Senior|'
+        r'Subtitled|Latest News|Membership|Private Hire|Gaming|Contact|Gift|'
+        r'Get in Touch|Stay connected|About|FAQ|Telephone|Restoration|Charity|'
+        r'RECEIVE|TikTok|Drama|Comedy|Music|Family|Adventure|Animation|Thriller|'
+        r'Romance|Documentary|Biography|Musical|Theatre|Play|Opera|Nation|'
+        r'Biopic|Science Fiction|Romantic|Fantasy|Teatro|Mins)',
+        re.IGNORECASE
+    )
 
     schedule = defaultdict(lambda: defaultdict(set))
+    current_film = None
+    current_date = None
+    after_runtime = False
 
-    # The page structure: film title appears before each "Running time: N mins" block
-    # Find all Running time occurrences
-    rt_positions = [m.start() for m in re.finditer(r'Running time:', text, re.IGNORECASE)]
-    print(f"Found {len(rt_positions)} 'Running time:' occurrences")
-
-    if not rt_positions:
-        return {}
-
-    date_pat = re.compile(
-        r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
-        r'\s+(\d{1,2})\s+'
-        r'(January|February|March|April|May|June|July|August|September|October|November|December)'
-        r'\s+(\d{4})'
-        r'((?:\s*\d{1,2}:\d{2})+)',
-        re.IGNORECASE
-    )
-
-    skip = re.compile(
-        r'^(Running|Now Showing|Coming Soon|Live Events|Senior|Subtitled|'
-        r'Latest News|Membership|Private Hire|Gaming|Contact|Gift|Get in Touch|'
-        r'Stay connected|About|FAQ|Telephone|Restoration|Charity|RECEIVE|TikTok|'
-        r'Drama|Comedy|Music$|Family$|Adventure$|Animation$|Thriller$|Romance$|'
-        r'Documentary$|Biography$|Musical$|Theatre$|Play$|Opera$|Nation|Biopic|'
-        r'Science Fiction|Romantic|Fantasy|Monday|Tuesday|Wednesday|Thursday|'
-        r'Friday|Saturday|Sunday|\d)',
-        re.IGNORECASE
-    )
-
-    for i, pos in enumerate(rt_positions):
-        # Get the block AFTER this "Running time:"
-        end_pos = rt_positions[i+1] if i+1 < len(rt_positions) else pos + 5000
-        block = text[pos:end_pos]
-
-        # Get film title from text BEFORE this "Running time:"
-        start_of_prev = rt_positions[i-1] + 200 if i > 0 else 0
-        preceding = text[start_of_prev:pos]
-
-        # Get last meaningful line before "Running time:"
-        lines = [l.strip() for l in preceding.replace('\r','\n').split('\n') if l.strip()]
-        film = None
-        for line in reversed(lines):
-            if len(line) < 2 or re.match(r'^[\d:]+$', line) or skip.match(line):
-                continue
-            film = line
-            break
-
-        if not film:
+    for line in lines:
+        if not line:
             continue
 
-        # Find dates and times in this block
-        seen = set()
-        for m in date_pat.finditer(block):
-            date_key = f"{int(m.group(4)):04d}-{MONTHS.get(m.group(3).lower(),0):02d}-{int(m.group(2)):02d}"
-            if not MONTHS.get(m.group(3).lower()):
-                continue
-            times = re.findall(r'\b(\d{1,2}:\d{2})\b', m.group(5))
-            key = (date_key, frozenset(times))
-            if key in seen:
-                continue
-            seen.add(key)
-            for t in times:
-                schedule[date_key][film].add(t)
+        # Running time line — marks end of title block, start of dates
+        if RT_PAT.match(line):
+            after_runtime = True
+            continue
+
+        # Date line
+        dm = DATE_PAT.match(line)
+        if dm:
+            after_runtime = True
+            day = int(dm.group(2))
+            month = MONTHS.get(dm.group(3).lower(), 0)
+            year = int(dm.group(4))
+            if month:
+                current_date = f"{year:04d}-{month:02d}-{day:02d}"
+            continue
+
+        # Time line
+        if TIME_PAT.match(line) and current_film and current_date:
+            schedule[current_date][current_film].add(line)
+            continue
+
+        # Skip known non-title lines
+        if SKIP.match(line):
+            after_runtime = False
+            continue
+
+        # If we hit a line that's ALL CAPS and not a date/time/genre,
+        # it's a new film title
+        if line == line.upper() and len(line) > 3 and not TIME_PAT.match(line) and not dm:
+            # Reset state for new film
+            current_film = to_title(line)
+            current_date = None
+            after_runtime = False
+            print(f"  Film: {current_film}")
+            continue
 
     return schedule
 
@@ -137,7 +209,7 @@ def render_js(schedule):
     return "\n".join(lines)
 
 if __name__ == "__main__":
-    print("Fetching", URL)
+    print(f"Fetching {URL}")
     html = fetch_page()
     print(f"Page fetched: {len(html)} chars")
     schedule = extract_showtimes(html)
