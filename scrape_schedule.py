@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Scrapes https://www.stationcinema.com/whatson/all
-Film titles appear in ALL CAPS. Dates and times are on separate lines.
 """
 import re, urllib.request, urllib.error, sys
 from datetime import datetime
@@ -37,9 +36,8 @@ def to_title(s):
     words = s.split()
     result = []
     for i, w in enumerate(words):
-        core = re.sub(r'[^A-Z]', '', w)
         if i == 0 or w.lower() not in MINOR:
-            if len(core) <= 3 and w == w.upper() and w.isalpha():
+            if re.match(r'^[A-Z]{1,3}$', w):
                 result.append(w)
             else:
                 result.append(w.capitalize())
@@ -51,69 +49,67 @@ def fetch_page():
     req = urllib.request.Request(URL, headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-GB,en;q=0.5",
-        "Cache-Control": "no-cache",
     })
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-            print(f"HTTP status: {resp.status}, bytes: {len(data)}")
-            return data.decode("utf-8", errors="replace")
-    except urllib.error.URLError as e:
-        print(f"ERROR fetching page: {e}")
-        return ""
-
-def strip_to_text(html):
-    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.S)
-    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.S)
-    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.I)
-    html = re.sub(r'<[^>]+>', ' ', html)
-    html = re.sub(r'&amp;', '&', html)
-    html = re.sub(r'&ndash;|&#8211;', '-', html)
-    html = re.sub(r'&[a-z#0-9]+;', ' ', html)
-    html = re.sub(r'[ \t]+', ' ', html)
-    html = re.sub(r' *\n *', '\n', html)
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    return html.strip()
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = resp.read()
+        print(f"HTTP {resp.status}, {len(data)} bytes")
+        return data.decode("utf-8", errors="replace")
 
 def extract_showtimes(html):
-    if not html:
-        print("ERROR: Empty page")
+    # The page has "Showtimes" in the nav menu AND in the main content
+    # We want the LAST occurrence which is the actual listings
+    # Better: use the soldOutOverride CSS class as a reliable marker
+    # that only appears in the listings section
+    
+    # Find all "Showtimes" positions
+    positions = [m.start() for m in re.finditer(r'Showtimes', html, re.IGNORECASE)]
+    print(f"Found 'Showtimes' at positions: {positions}")
+    
+    if not positions:
+        print("ERROR: No Showtimes marker found")
         return {}
-
-    text = strip_to_text(html)
-    print(f"Stripped text length: {len(text)}")
-
-    # Find the SHOWTIMES section - the page renders it as "SHOWTIMES" in all caps
-    # Try multiple possible markers
-    body = None
-    for marker in ['SHOWTIMES\n', 'Showtimes\n', 'SHOWTIMES ', 'Showtimes ']:
-        idx = text.find(marker)
-        if idx != -1:
-            print(f"Found marker '{marker.strip()}' at position {idx}")
-            body = text[idx:]
-            break
-
-    if body is None:
-        # Try to find by looking for the first "Running time:" occurrence
-        idx = text.find('Running time:')
-        if idx != -1:
-            print(f"Using 'Running time:' as start marker at position {idx}")
-            # Go back to find the film title before it
-            body = text[max(0, idx-500):]
-        else:
-            print("ERROR: Cannot find SHOWTIMES or Running time: in page")
-            print("Text sample (first 1000 chars):")
-            print(text[:1000])
-            return {}
-
-    end = body.find('Check Our Socials')
-    if end != -1:
-        body = body[:end]
-    print(f"Body section: {len(body)} chars")
-
-    lines = [l.strip() for l in body.split('\n')]
-    print(f"Total lines: {len(lines)}")
+    
+    # The listings section Showtimes is after the soldOutOverride CSS
+    # Use the LAST occurrence of Showtimes
+    start = positions[-1]
+    print(f"Using last Showtimes at position {start}")
+    
+    # Also try to find it after the soldOut CSS block
+    soldout_idx = html.find('soldOutOverride')
+    if soldout_idx > 0:
+        # Find the next Showtimes after the soldOut CSS
+        for pos in positions:
+            if pos > soldout_idx:
+                start = pos
+                print(f"Using Showtimes after soldOut CSS at position {start}")
+                break
+    
+    # Strip from this position to "Check Our Socials"
+    section = html[start:]
+    end = section.find('Check Our Socials')
+    if end > 0:
+        section = section[:end]
+    
+    # Strip HTML
+    section = re.sub(r'<script[^>]*>.*?</script>', '', section, flags=re.S)
+    section = re.sub(r'<style[^>]*>.*?</style>', '', section, flags=re.S)
+    section = re.sub(r'<br\s*/?>', '\n', section, flags=re.I)
+    section = re.sub(r'<[^>]+>', ' ', section)
+    section = re.sub(r'&amp;', '&', section)
+    section = re.sub(r'&ndash;|&#8211;|\u2013', '-', section)
+    section = re.sub(r'&[a-z#0-9]+;', ' ', section)
+    section = re.sub(r'[ \t]+', ' ', section)
+    section = re.sub(r' *\n *', '\n', section)
+    section = re.sub(r'\n{3,}', '\n\n', section)
+    section = section.strip()
+    
+    print(f"Section length: {len(section)} chars")
+    
+    lines = [l.strip() for l in section.split('\n') if l.strip()]
+    print(f"Lines: {len(lines)}")
+    # Print first 20 lines for debug
+    for i, l in enumerate(lines[:20]):
+        print(f"  L{i}: {repr(l)}")
 
     DATE_PAT = re.compile(
         r'^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
@@ -121,30 +117,19 @@ def extract_showtimes(html):
         r'(January|February|March|April|May|June|July|August|September|October|November|December)'
         r'\s+(\d{4})$', re.IGNORECASE)
     TIME_PAT = re.compile(r'^\d{1,2}:\d{2}$')
-    RT_PAT = re.compile(r'Running time:', re.IGNORECASE)
-    SKIP_PAT = re.compile(
-        r'^(Running time|SHOWTIMES|Showtimes|Now Showing|Coming Soon|Live Events|Senior|'
-        r'Subtitled|Latest News|Membership|Private Hire|Gaming|Contact|Gift|'
-        r'Get in Touch|Stay connected|About|FAQ|Telephone|Restoration|Charity|'
-        r'RECEIVE|TikTok|Check Our)$', re.IGNORECASE)
-    # Pure genre lines (no dates or times)
     GENRE_WORDS = {'drama','comedy','music','family','adventure','animation','thriller',
                    'romance','documentary','biography','musical','theatre','play','opera',
-                   'fantasy','biopic','nation','teatro','action','mystery','science'}
+                   'fantasy','biopic','action','mystery','science','fiction','sci-fi',
+                   'teatro','nation','romantic','mins','live'}
 
     schedule = defaultdict(lambda: defaultdict(set))
     current_film = None
     current_date = None
 
     for line in lines:
-        if not line:
-            continue
-        if RT_PAT.search(line):
-            continue
-        if SKIP_PAT.match(line):
+        if not line or re.match(r'^Running time:', line, re.I):
             continue
 
-        # Date line
         dm = DATE_PAT.match(line)
         if dm:
             month = MONTHS.get(dm.group(3).lower(), 0)
@@ -152,27 +137,24 @@ def extract_showtimes(html):
                 current_date = f"{int(dm.group(4)):04d}-{month:02d}-{int(dm.group(2)):02d}"
             continue
 
-        # Time line
         if TIME_PAT.match(line):
             if current_film and current_date:
                 schedule[current_date][current_film].add(line)
             continue
 
-        # Genre line — skip lines that are pure genre words
-        words_lower = set(line.lower().replace(',', ' ').split())
-        if words_lower and words_lower.issubset(GENRE_WORDS | {'','fiction','sci-fi'}):
+        # Skip pure genre lines
+        words_lower = set(re.sub(r'[^a-z ]', '', line.lower()).split())
+        if words_lower and words_lower.issubset(GENRE_WORDS | {''}):
             continue
 
-        # ALL CAPS line = new film title
-        # Check: mostly uppercase letters (allow punctuation, &, numbers, spaces)
-        alpha_chars = re.sub(r'[^a-zA-Z]', '', line)
-        if alpha_chars and alpha_chars == alpha_chars.upper() and len(line) > 2:
+        # ALL CAPS = film title
+        alpha = re.sub(r'[^a-zA-Z]', '', line)
+        if alpha and alpha == alpha.upper() and len(line) > 2:
             new_film = to_title(line)
             if new_film != current_film:
                 current_film = new_film
                 current_date = None
                 print(f"  Film: {current_film}")
-            continue
 
     return schedule
 
@@ -188,13 +170,9 @@ def render_js(schedule):
     ]
     for date_key in sorted(schedule.keys()):
         dt = datetime.strptime(date_key, "%Y-%m-%d")
-        lines += [
-            "",
-            "  /* =======================",
-            f"   * {dt.strftime('%A')} {dt.day} {MONTH_NAMES[dt.month-1]} {dt.year}",
-            "   * ======================= */",
-            f'  "{date_key}": ['
-        ]
+        lines += ["", "  /* =======================",
+                  f"   * {dt.strftime('%A')} {dt.day} {MONTH_NAMES[dt.month-1]} {dt.year}",
+                  "   * ======================= */", f'  "{date_key}": [']
         for film, times_set in sorted(schedule[date_key].items()):
             ts = ", ".join(f'"{t}"' for t in sorted(times_set))
             lines.append(f'    {{ film: "{film}", times: [{ts}] }},')
@@ -205,17 +183,13 @@ def render_js(schedule):
 if __name__ == "__main__":
     print(f"Fetching {URL}")
     html = fetch_page()
-    if not html:
-        print("WARNING: No schedule data found — keeping existing schedule.js")
-        sys.exit(1)
-    print(f"Page fetched: {len(html)} chars")
+    print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
         print("WARNING: No schedule data found — keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
-    print(f"Found {total} film/day combinations across {len(schedule)} days")
-    output = render_js(schedule)
+    print(f"Found {total} showings across {len(schedule)} days")
     with open("schedule.js", "w", encoding="utf-8") as f:
-        f.write(output)
-    print("schedule.js written successfully")
+        f.write(render_js(schedule))
+    print("Done")
