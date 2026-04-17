@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 """
 Scrapes https://www.stationcinema.com/whatson/all
+
+Raw HTML structure (after stripping tags):
+  Showtimes
+  Film Title (mixed case, exact)
+  Running time: N mins
+  [optional genre]
+  Day DD Month YYYY HH:MM HH:MM Day DD Month YYYY HH:MM ...  <- all on ONE line
+  [duplicate of above line]
+  Next Film Title
+  ...
 """
-import re, urllib.request, urllib.error, sys
+import re, urllib.request, sys
 from datetime import datetime
 from collections import defaultdict
 
@@ -11,39 +21,6 @@ MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
           "july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
 MONTH_NAMES = ["January","February","March","April","May","June",
                "July","August","September","October","November","December"]
-MINOR = {"a","an","the","and","but","or","for","nor","on","at","to","by","in","of","up","as","is"}
-TITLE_FIXES = {
-    "NT LIVE: ALL MY SONS": "NT Live: All My Sons",
-    "NT LIVE: LES LIAISONS DANGEREUSES": "NT Live: Les Liaisons Dangereuses",
-    "NT LIVE: THE PLAYBOY OF THE WESTERN WORLD": "NT Live: The Playboy of the Western World",
-    "NT LIVE: THE AUDIENCE": "NT Live: The Audience",
-    "RBO: THE MAGIC FLUTE": "RBO: The Magic Flute",
-    "RBO: SIEGFRIED": "RBO: Siegfried",
-    "MET OPERA: EUGENE ONEGIN": "MET Opera: Eugene Onegin",
-    "DOG FRIENDLY SCREENING: THE DEVIL WEARS PAW-DA 2": "Dog Friendly Screening: The Devil Wears Paw-da 2",
-    "EXHIBITION ON SCREEN : FRIDA KAHLO": "Exhibition On Screen: FRIDA KAHLO",
-    "EXHIBITION ON SCREEN: FRIDA KAHLO": "Exhibition On Screen: FRIDA KAHLO",
-    "EXHIBITION ON SCREEN: TURNER & CONSTABLE": "Exhibition On Screen: TURNER & CONSTABLE",
-    "POWER TO THE PEOPLE: JOHN & YOKO LIVE IN NYC": "Power To The People: John & Yoko Live in NYC",
-    "STAR WARS: THE MANDALORIAN AND GROGU": "Star Wars: The Mandalorian and Grogu",
-    "A LIBERTY OF CONSCIENCE": "A Liberty of Conscience",
-    "EPIC: ELVIS PRESLEY IN CONCERT": "EPiC: Elvis Presley in Concert",
-}
-
-def to_title(s):
-    if s in TITLE_FIXES:
-        return TITLE_FIXES[s]
-    words = s.split()
-    result = []
-    for i, w in enumerate(words):
-        if i == 0 or w.lower() not in MINOR:
-            if re.match(r'^[A-Z]{1,3}$', w):
-                result.append(w)
-            else:
-                result.append(w.capitalize())
-        else:
-            result.append(w.lower())
-    return " ".join(result)
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={
@@ -55,106 +32,132 @@ def fetch_page():
         print(f"HTTP {resp.status}, {len(data)} bytes")
         return data.decode("utf-8", errors="replace")
 
-def extract_showtimes(html):
-    # The page has "Showtimes" in the nav menu AND in the main content
-    # We want the LAST occurrence which is the actual listings
-    # Better: use the soldOutOverride CSS class as a reliable marker
-    # that only appears in the listings section
-    
-    # Find all "Showtimes" positions
-    positions = [m.start() for m in re.finditer(r'Showtimes', html, re.IGNORECASE)]
-    print(f"Found 'Showtimes' at positions: {positions}")
-    
-    if not positions:
-        print("ERROR: No Showtimes marker found")
-        return {}
-    
-    # The listings section Showtimes is after the soldOutOverride CSS
-    # Use the LAST occurrence of Showtimes
-    start = positions[-1]
-    print(f"Using last Showtimes at position {start}")
-    
-    # Also try to find it after the soldOut CSS block
-    soldout_idx = html.find('soldOutOverride')
-    if soldout_idx > 0:
-        # Find the next Showtimes after the soldOut CSS
-        for pos in positions:
-            if pos > soldout_idx:
-                start = pos
-                print(f"Using Showtimes after soldOut CSS at position {start}")
-                break
-    
-    # Strip from this position to "Check Our Socials"
-    section = html[start:]
-    end = section.find('Check Our Socials')
-    if end > 0:
-        section = section[:end]
-    
-    # Strip HTML
-    section = re.sub(r'<script[^>]*>.*?</script>', '', section, flags=re.S)
-    section = re.sub(r'<style[^>]*>.*?</style>', '', section, flags=re.S)
-    section = re.sub(r'<br\s*/?>', '\n', section, flags=re.I)
-    section = re.sub(r'<[^>]+>', ' ', section)
-    section = re.sub(r'&amp;', '&', section)
-    section = re.sub(r'&ndash;|&#8211;|\u2013', '-', section)
-    section = re.sub(r'&[a-z#0-9]+;', ' ', section)
-    section = re.sub(r'[ \t]+', ' ', section)
-    section = re.sub(r' *\n *', '\n', section)
-    section = re.sub(r'\n{3,}', '\n\n', section)
-    section = section.strip()
-    
-    print(f"Section length: {len(section)} chars")
-    
-    lines = [l.strip() for l in section.split('\n') if l.strip()]
-    print(f"Lines: {len(lines)}")
-    # Print first 20 lines for debug
-    for i, l in enumerate(lines[:20]):
-        print(f"  L{i}: {repr(l)}")
+def strip_html(html):
+    html = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.S)
+    html = re.sub(r'<style[^>]*>.*?</style>', ' ', html, flags=re.S)
+    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.I)
+    html = re.sub(r'<[^>]+>', ' ', html)
+    html = re.sub(r'&amp;', '&', html)
+    html = re.sub(r'&ndash;|&#8211;', '-', html)
+    html = re.sub(r'&[a-z#0-9]+;', ' ', html)
+    html = re.sub(r'[ \t]+', ' ', html)
+    html = re.sub(r'[ ]*[\r\n]+[ ]*', '\n', html)
+    html = re.sub(r'\n{2,}', '\n', html)
+    return html.strip()
 
-    DATE_PAT = re.compile(
-        r'^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
+def parse_date_time_line(line):
+    """
+    Parse a line like:
+    'Friday 17 April 2026 13:30 19:30 Saturday 18 April 2026 16:30 19:30'
+    Returns dict: {date_key: [times]}
+    """
+    result = defaultdict(set)
+    # Split by day names to get chunks per date
+    day_pat = re.compile(
+        r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
         r'\s+(\d{1,2})\s+'
         r'(January|February|March|April|May|June|July|August|September|October|November|December)'
-        r'\s+(\d{4})$', re.IGNORECASE)
-    TIME_PAT = re.compile(r'^\d{1,2}:\d{2}$')
-    GENRE_WORDS = {'drama','comedy','music','family','adventure','animation','thriller',
-                   'romance','documentary','biography','musical','theatre','play','opera',
-                   'fantasy','biopic','action','mystery','science','fiction','sci-fi',
-                   'teatro','nation','romantic','mins','live'}
+        r'\s+(\d{4})'
+        r'((?:\s+\d{1,2}:\d{2})*)',
+        re.IGNORECASE
+    )
+    for m in day_pat.finditer(line):
+        month = MONTHS.get(m.group(3).lower(), 0)
+        if not month:
+            continue
+        date_key = f"{int(m.group(4)):04d}-{month:02d}-{int(m.group(2)):02d}"
+        times = re.findall(r'\d{1,2}:\d{2}', m.group(5))
+        for t in times:
+            result[date_key].add(t)
+    return result
+
+def extract_showtimes(html):
+    # Find the showtimes section - after soldOutOverride CSS
+    soldout_idx = html.find('soldOutOverride')
+    showtimes_idx = html.find('Showtimes', soldout_idx if soldout_idx > 0 else 0)
+    if showtimes_idx == -1:
+        print("ERROR: Cannot find Showtimes section")
+        return {}
+
+    # End at footer
+    end_markers = ['Check Our Socials', 'About Us', 'Restoration Levy']
+    end_idx = len(html)
+    for marker in end_markers:
+        idx = html.find(marker, showtimes_idx)
+        if idx > 0:
+            end_idx = min(end_idx, idx)
+
+    section = html[showtimes_idx:end_idx]
+    text = strip_html(section)
+    print(f"Section: {len(text)} chars")
+
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    print(f"Lines: {len(lines)}")
+
+    # Patterns
+    RT_PAT = re.compile(r'^Running time:', re.I)
+    DATE_LINE_PAT = re.compile(
+        r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
+        r'\s+\d{1,2}\s+'
+        r'(?:January|February|March|April|May|June|July|August|September|October|November|December)'
+        r'\s+\d{4}',
+        re.I
+    )
+    GENRE_WORDS = {
+        'drama','comedy','music','family','adventure','animation','thriller',
+        'romance','documentary','biography','musical','theatre','play','opera',
+        'fantasy','biopic','action','mystery','science','fiction','romantic',
+        'teatro','nation','live','mins','running'
+    }
+    SKIP_LINES = {'showtimes','check our socials','about us','stay connected','tiktok'}
 
     schedule = defaultdict(lambda: defaultdict(set))
     current_film = None
-    current_date = None
+    seen_date_lines = set()  # to deduplicate the repeated blocks
 
-    for line in lines:
-        if not line or re.match(r'^Running time:', line, re.I):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Skip known non-film lines
+        if line.lower() in SKIP_LINES:
+            i += 1
             continue
 
-        dm = DATE_PAT.match(line)
-        if dm:
-            month = MONTHS.get(dm.group(3).lower(), 0)
-            if month:
-                current_date = f"{int(dm.group(4)):04d}-{month:02d}-{int(dm.group(2)):02d}"
+        # Skip Running time lines
+        if RT_PAT.match(line):
+            i += 1
             continue
 
-        if TIME_PAT.match(line):
-            if current_film and current_date:
-                schedule[current_date][current_film].add(line)
+        # Date+time line
+        if DATE_LINE_PAT.search(line):
+            # Deduplicate - page repeats each date block twice
+            if line not in seen_date_lines and current_film:
+                seen_date_lines.add(line)
+                date_times = parse_date_time_line(line)
+                for date_key, times in date_times.items():
+                    for t in times:
+                        schedule[date_key][current_film].add(t)
+            i += 1
             continue
 
         # Skip pure genre lines
-        words_lower = set(re.sub(r'[^a-z ]', '', line.lower()).split())
-        if words_lower and words_lower.issubset(GENRE_WORDS | {''}):
+        words = set(re.sub(r'[^a-z, ]', '', line.lower()).split())
+        words.discard('')
+        if words and words.issubset(GENRE_WORDS):
+            i += 1
             continue
 
-        # ALL CAPS = film title
-        alpha = re.sub(r'[^a-zA-Z]', '', line)
-        if alpha and alpha == alpha.upper() and len(line) > 2:
-            new_film = to_title(line)
-            if new_film != current_film:
-                current_film = new_film
-                current_date = None
-                print(f"  Film: {current_film}")
+        # Skip very short fragments
+        if len(line) < 3:
+            i += 1
+            continue
+
+        # Must be a film title
+        current_film = line
+        seen_date_lines = set()  # reset dedup for new film
+        print(f"  Film: {current_film}")
+        i += 1
 
     return schedule
 
@@ -170,9 +173,13 @@ def render_js(schedule):
     ]
     for date_key in sorted(schedule.keys()):
         dt = datetime.strptime(date_key, "%Y-%m-%d")
-        lines += ["", "  /* =======================",
-                  f"   * {dt.strftime('%A')} {dt.day} {MONTH_NAMES[dt.month-1]} {dt.year}",
-                  "   * ======================= */", f'  "{date_key}": [']
+        lines += [
+            "",
+            "  /* =======================",
+            f"   * {dt.strftime('%A')} {dt.day} {MONTH_NAMES[dt.month-1]} {dt.year}",
+            "   * ======================= */",
+            f'  "{date_key}": ['
+        ]
         for film, times_set in sorted(schedule[date_key].items()):
             ts = ", ".join(f'"{t}"' for t in sorted(times_set))
             lines.append(f'    {{ film: "{film}", times: [{ts}] }},')
