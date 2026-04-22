@@ -34,7 +34,7 @@ window.SCHEDULE = {
   "2026-04-24": [
     { film: "Glenrothan", times: ["13:45", "19:15"] },
     { film: "Michael", times: ["13:00", "16:15", "19:30"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["19:30"] },
+    { film: "Mother Mary", times: ["19:30"] },
     { film: "The North", times: ["14:00"] },
   ],
 
@@ -44,7 +44,7 @@ window.SCHEDULE = {
   "2026-04-25": [
     { film: "Glenrothan", times: ["16:30", "19:00"] },
     { film: "Michael", times: ["13:30", "16:00", "19:30"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["19:30"] },
+    { film: "Mother Mary", times: ["19:30"] },
     { film: "The Magic Faraway Tree", times: ["13:15"] },
     { film: "The North", times: ["14:00"] },
   ],
@@ -55,7 +55,7 @@ window.SCHEDULE = {
   "2026-04-26": [
     { film: "Glenrothan", times: ["15:45", "18:30"] },
     { film: "Michael", times: ["12:00", "15:15", "18:15"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["18:30"] },
+    { film: "Mother Mary", times: ["18:30"] },
     { film: "RBO: The Magic Flute", times: ["14:00"] },
     { film: "The Magic Faraway Tree", times: ["12:45"] },
   ],
@@ -66,7 +66,7 @@ window.SCHEDULE = {
   "2026-04-27": [
     { film: "Glenrothan", times: ["16:45", "19:30"] },
     { film: "Michael", times: ["13:30", "16:00", "19:15"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["13:30"] },
+    { film: "Mother Mary", times: ["13:30"] },
     { film: "NT Live: All My Sons", times: ["19:30"] },
     { film: "The North", times: ["16:00"] },
   ],
@@ -77,7 +77,7 @@ window.SCHEDULE = {
   "2026-04-28": [
     { film: "Glenrothan", times: ["13:45", "19:00"] },
     { film: "Michael", times: ["13:30", "16:30", "19:30"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["19:30"] },
+    { film: "Mother Mary", times: ["19:30"] },
     { film: "The North", times: ["16:00"] },
   ],
 
@@ -87,7 +87,7 @@ window.SCHEDULE = {
   "2026-04-29": [
     { film: "Glenrothan", times: ["13:30", "16:45"] },
     { film: "Michael", times: ["13:30", "16:00", "19:30"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["19:45"] },
+    { film: "Mother Mary", times: ["19:45"] },
     { film: "Power To The People: John & Yoko Live in NYC", times: ["19:30"] },
     { film: "The North", times: ["16:00"] },
   ],
@@ -99,7 +99,7 @@ window.SCHEDULE = {
     { film: "Funny Girl The Musical", times: ["19:30"] },
     { film: "Glenrothan", times: ["13:30"] },
     { film: "Michael", times: ["13:15", "16:15", "19:30"] },
-    { film: "Music, Drama, Horror, and Thrille", times: ["19:45"] },
+    { film: "Mother Mary", times: ["19:45"] },
     { film: "The North", times: ["16:00"] },
   ],
 
