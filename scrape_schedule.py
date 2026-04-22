@@ -154,7 +154,7 @@ if __name__ == "__main__":
     print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found â keeping existing schedule.js")
+        print("WARNING: No schedule data found Ã¢ÂÂ keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} showings across {len(schedule)} days")
