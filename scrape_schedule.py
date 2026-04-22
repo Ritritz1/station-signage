@@ -26,7 +26,7 @@ GENRE_WORDS = frozenset([
     "fantasy","biopic","action","mystery","science","fiction","romantic",
     "teatro","nation","live","sci-fi","horror","crime","historical",
     "war","sport","western","noir","suspense","supernatural",
-    "psychological","political","satire","parody"
+    "psychological","and","thrille","superhero","history","based","true","story","events","political","satire","parody"
 ])
 ALWAYS_SKIP = re.compile(
     r"^(Showtimes|Running time:|Check Our Socials|About Us|Stay connected|"
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found Ã¢ÂÂ keeping existing schedule.js")
+        print("WARNING: No schedule data found ÃÂ¢ÃÂÃÂ keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} showings across {len(schedule)} days")
