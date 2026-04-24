@@ -3,6 +3,7 @@
 
 window.TMDB_OVERRIDES = window.TMDB_OVERRIDES || {};
 window.TMDB_OVERRIDES["The Stranger"] = { id: 1429348 };
+window.TMDB_OVERRIDES["The North"] = { id: 1434113 };
 
 window.SCHEDULE = {
 
