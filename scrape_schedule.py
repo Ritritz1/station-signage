@@ -11,7 +11,7 @@ Raw HTML structure (after stripping tags):
   [duplicate of above]
   Next Film Title
 """
-import re, urllib.request, sys
+import re, urllib.request, sys, json
 from datetime import datetime
 from collections import defaultdict
 
@@ -148,13 +148,36 @@ def render_js(schedule):
     lines += ["};", ""]
     return "\n".join(lines)
 
+def is_uk_bank_holiday():
+    """Check if today is a UK bank holiday using the gov.uk API."""
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    try:
+        req = urllib.request.Request(
+            "https://www.gov.uk/bank-holidays.json",
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        # Check England and Wales division
+        holidays = [e["date"] for e in data.get("england-and-wales", {}).get("events", [])]
+        return today in holidays
+    except Exception as e:
+        print(f"Could not check bank holidays: {e}")
+        return False
+
 if __name__ == "__main__":
+    # On Wednesdays, skip if today is a UK bank holiday
+    today_weekday = datetime.utcnow().weekday()  # 0=Mon, 2=Wed
+    if today_weekday == 2 and is_uk_bank_holiday():
+        print(f"Today is a UK bank holiday — skipping Wednesday scrape (schedule will be delayed)")
+        sys.exit(0)
+
     print(f"Fetching {URL}")
     html = fetch_page()
     print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found ÃÂ¢ÃÂÃÂ keeping existing schedule.js")
+        print("WARNING: No schedule data found ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} showings across {len(schedule)} days")
