@@ -256,6 +256,10 @@ window.SCHEDULE = {
   /* =======================
    * Saturday 4 July 2026
    * ======================= */
+  "2026-07-01": [
+    { film: "Evgenij Onegin – Tchaikovsky", times: ["19:15"] },
+  ],
+
   "2026-07-04": [
     { film: "A Liberty of Conscience", times: ["16:00"] },
   ],
