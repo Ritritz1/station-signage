@@ -72,7 +72,10 @@ def fetch_page():
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()
         print(f"HTTP {resp.status}, {len(data)} bytes")
-        return data.decode("utf-8", errors="replace").replace("\u00e2\u0080\u0099", "\u2019").replace("\u00e2\u0080\u0093", "-")
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            return data.decode("latin-1").replace("\u00e2\u0080\u0099", "\u2019").replace("\u00e2\u0080\u0093", "-")
 
 def clean_text(s):
     """Fix common encoding issues in film titles."""
@@ -186,7 +189,7 @@ if __name__ == "__main__":
     # On Wednesdays, skip if today is a UK bank holiday
     today_weekday = datetime.utcnow().weekday()  # 0=Mon, 2=Wed
     if today_weekday == 2 and is_uk_bank_holiday():
-        print(f"Today is a UK bank holiday â skipping Wednesday scrape (schedule will be delayed)")
+        print(f"Today is a UK bank holiday Ã¢ÂÂ skipping Wednesday scrape (schedule will be delayed)")
         sys.exit(0)
 
     print(f"Fetching {URL}")
@@ -194,7 +197,7 @@ if __name__ == "__main__":
     print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ keeping existing schedule.js")
+        print("WARNING: No schedule data found ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} showings across {len(schedule)} days")
