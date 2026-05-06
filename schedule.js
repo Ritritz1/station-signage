@@ -10,7 +10,7 @@ window.SCHEDULE = {
    * Wednesday 6 May 2026
    * ======================= */
   "2026-05-06": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["19:00"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["19:00"] },
     { film: "Glenrothan", times: ["16:30"] },
     { film: "Michael", times: ["19:00"] },
     { film: "The Devil Wears Prada 2", times: ["16:30", "19:30"] },
@@ -20,7 +20,7 @@ window.SCHEDULE = {
    * Thursday 7 May 2026
    * ======================= */
   "2026-05-07": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["19:30"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["19:30"] },
     { film: "Glenrothan", times: ["16:00"] },
     { film: "Michael", times: ["16:15", "19:00"] },
     { film: "NT Live: All My Sons", times: ["13:30"] },
@@ -31,7 +31,7 @@ window.SCHEDULE = {
    * Friday 8 May 2026
    * ======================= */
   "2026-05-08": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["16:00"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["16:00"] },
     { film: "Glenrothan", times: ["13:30"] },
     { film: "Michael", times: ["19:00"] },
     { film: "The Devil Wears Prada 2", times: ["13:30", "16:30", "19:30"] },
@@ -52,7 +52,7 @@ window.SCHEDULE = {
    * Sunday 10 May 2026
    * ======================= */
   "2026-05-10": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["18:30"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["18:30"] },
     { film: "Dog Friendly Screening: The Devil Wears Paw-da 2", times: ["11:30"] },
     { film: "Michael", times: ["13:00"] },
     { film: "The Devil Wears Prada 2", times: ["12:45", "15:30", "18:30"] },
@@ -82,7 +82,7 @@ window.SCHEDULE = {
    * Wednesday 13 May 2026
    * ======================= */
   "2026-05-13": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["13:00"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["13:00"] },
     { film: "Michael", times: ["16:00"] },
     { film: "The Devil Wears Prada 2", times: ["13:30", "16:30", "19:30"] },
     { film: "The Sheep Detectives", times: ["14:00", "16:45", "19:15"] },
@@ -93,7 +93,7 @@ window.SCHEDULE = {
    * Thursday 14 May 2026
    * ======================= */
   "2026-05-14": [
-    { film: "Colours Of Time / La venue de lï¿½avenir", times: ["16:30"] },
+    { film: "Colours Of Time / La venue de l’avenir", times: ["16:30"] },
     { film: "Glenrothan", times: ["19:30"] },
     { film: "Michael", times: ["13:00"] },
     { film: "Star Wars: The Mandalorian and Grogu", times: ["16:30"] },
