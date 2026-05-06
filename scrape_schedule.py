@@ -72,7 +72,24 @@ def fetch_page():
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()
         print(f"HTTP {resp.status}, {len(data)} bytes")
-        return data.decode("utf-8", errors="replace")
+        return data.decode("utf-8", errors="replace").replace("\u00e2\u0080\u0099", "\u2019").replace("\u00e2\u0080\u0093", "-")
+
+def clean_text(s):
+    """Fix common encoding issues in film titles."""
+    # Replace UTF-8 mojibake for curly apostrophe and other chars
+    replacements = [
+        ("\u00e2\u0080\u0099", "'"),   # curly apostrophe
+        ("\u00e2\u0080\u0098", "'"),   # left curly apostrophe  
+        ("\u00e2\u0080\u0093", "-"),   # en dash
+        ("\u00e2\u0080\u0094", "-"),   # em dash
+        ("\u00c3\u00a9", "e"),          # e acute
+        ("\u00c3\u00a8", "e"),          # e grave
+        ("\u00ef\u00bf\u00bd", "'"),   # replacement character -> apostrophe
+        ("\ufffd", "'"),                  # replacement character
+    ]
+    for old, new in replacements:
+        s = s.replace(old, new)
+    return s.strip()
 
 def strip_html(html):
     html = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.S)
@@ -169,7 +186,7 @@ if __name__ == "__main__":
     # On Wednesdays, skip if today is a UK bank holiday
     today_weekday = datetime.utcnow().weekday()  # 0=Mon, 2=Wed
     if today_weekday == 2 and is_uk_bank_holiday():
-        print(f"Today is a UK bank holiday — skipping Wednesday scrape (schedule will be delayed)")
+        print(f"Today is a UK bank holiday â skipping Wednesday scrape (schedule will be delayed)")
         sys.exit(0)
 
     print(f"Fetching {URL}")
@@ -177,7 +194,7 @@ if __name__ == "__main__":
     print(f"Page: {len(html)} chars")
     schedule = extract_showtimes(html)
     if not schedule:
-        print("WARNING: No schedule data found ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ keeping existing schedule.js")
+        print("WARNING: No schedule data found ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ keeping existing schedule.js")
         sys.exit(1)
     total = sum(len(v) for v in schedule.values())
     print(f"Found {total} showings across {len(schedule)} days")
