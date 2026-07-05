@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slideshow Video Upload - The Station</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: sans-serif; background:#193A40; color:#fff; max-width:520px; margin:60px auto; padding:0 20px; }
+    h1 { font-size:1.4rem; color:#F7C2C4; }
+    label { display:block; margin-top:20px; font-weight:600; }
+    input, select { width:100%; padding:10px; margin-top:6px; border-radius:6px; border:none; font-size:1rem; box-sizing:border-box; }
+    button { margin-top:24px; width:100%; padding:14px; background:#F7C2C4; color:#193A40; font-weight:700; border:none; border-radius:6px; font-size:1rem; cursor:pointer; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    #status { margin-top:16px; font-size:0.95rem; }
+    #gate { text-align:center; }
+    #gate input { text-align:center; }
+  </style>
+</head>
+<body>
+  <div id="gate">
+    <h1>Slideshow Upload</h1>
+    <label>Enter passcode</label>
+    <input type="password" id="passcode" autocomplete="off">
+    <button id="unlockBtn">Unlock</button>
+  </div>
+
+  <div id="uploader" style="display:none">
+    <h1>Upload a video to the slideshow</h1>
+    <label>Which folder?</label>
+    <select id="folder">
+      <option value="uploads">One-off / special event (uploads)</option>
+      <option value="base">Replace the standing price list video (base)</option>
+    </select>
+    <label>Video file</label>
+    <input type="file" id="fileInput" accept="video/*">
+    <button id="uploadBtn">Upload</button>
+    <div id="status"></div>
+  </div>
+
+  <script src="slideshow-config.js"></script>
+  <script>
+    document.getElementById("unlockBtn").addEventListener("click", function () {
+      var entered = document.getElementById("passcode").value;
+      if (entered === window.UPLOAD_PASSCODE) {
+        document.getElementById("gate").style.display = "none";
+        document.getElementById("uploader").style.display = "block";
+      } else {
+        alert("Wrong passcode.");
+      }
+    });
+
+    document.getElementById("uploadBtn").addEventListener("click", async function () {
+      var fileInput = document.getElementById("fileInput");
+      var folder = document.getElementById("folder").value;
+      var status = document.getElementById("status");
+      var btn = document.getElementById("uploadBtn");
+
+      if (!fileInput.files.length) {
+        status.textContent = "Choose a file first.";
+        return;
+      }
+      if (!window.SUPABASE_URL || window.SUPABASE_URL.indexOf("PASTE_YOUR") === 0) {
+        status.textContent = "Supabase isn't configured yet - check slideshow-config.js.";
+        return;
+      }
+
+      var file = fileInput.files[0];
+      var sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      var path = folder + "/" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      btn.disabled = true;
+      status.textContent = "Uploading... this can take a while for large videos, don't close this page.";
+
+      var result = await sb.storage.from(window.SUPABASE_BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        upsert: false
+      });
+
+      btn.disabled = false;
+      if (result.error) {
+        status.textContent = "Upload failed: " + result.error.message;
+      } else {
+        status.textContent = "Done! It'll appear in the slideshow rotation within 15 minutes, or refresh the display screen to show it immediately.";
+        fileInput.value = "";
+      }
+    });
+  </script>
+</body>
+</html>
