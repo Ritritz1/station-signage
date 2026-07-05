@@ -31,6 +31,6 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add schedule.js
+          git add schedule.js seen_films.json new_this_week.json
           git diff --cached --quiet || git commit -m "chore: update schedule $(date -u +'%Y-%m-%d')"
           git push
