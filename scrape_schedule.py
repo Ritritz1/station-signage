@@ -185,6 +185,41 @@ def is_uk_bank_holiday():
         print(f"Could not check bank holidays: {e}")
         return False
 
+def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_this_week.json"):
+    """
+    Tracks which film titles are newly appearing in the schedule.
+    - seen_films.json: every title we've ever seen, with the date first seen.
+    - new_this_week.json: titles first seen within the last 7 days (this is
+      what the slideshow reads from).
+    """
+    try:
+        with open(seen_path, "r", encoding="utf-8") as f:
+            seen = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        seen = {}
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    all_titles = sorted({film for day in schedule.values() for film in day.keys()})
+
+    for title in all_titles:
+        if title not in seen:
+            seen[title] = today
+
+    with open(seen_path, "w", encoding="utf-8") as f:
+        json.dump(seen, f, indent=2, ensure_ascii=False)
+
+    cutoff = datetime.utcnow().timestamp() - 7 * 86400
+    new_titles = [
+        t for t, first_seen in seen.items()
+        if t in all_titles and datetime.strptime(first_seen, "%Y-%m-%d").timestamp() >= cutoff
+    ]
+
+    with open(new_path, "w", encoding="utf-8") as f:
+        json.dump({"generated": today, "films": sorted(new_titles)}, f, indent=2, ensure_ascii=False)
+
+    print(f"New this week: {new_titles}")
+
+
 if __name__ == "__main__":
     # On Wednesdays, skip if today is a UK bank holiday
     today_weekday = datetime.utcnow().weekday()  # 0=Mon, 2=Wed
@@ -203,4 +238,5 @@ if __name__ == "__main__":
     print(f"Found {total} showings across {len(schedule)} days")
     with open("schedule.js", "w", encoding="utf-8") as f:
         f.write(render_js(schedule))
+    update_new_this_week(schedule)
     print("Done")
