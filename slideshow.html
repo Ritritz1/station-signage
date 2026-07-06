@@ -36,15 +36,23 @@
   <script src="slideshow.js"></script>
   <script>
     function fitStage() {
-      var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      var vw = document.documentElement.clientWidth || window.innerWidth;
+      var vh = document.documentElement.clientHeight || window.innerHeight;
+      if (!vw || !vh) return;
+      var scale = Math.min(vw / 1920, vh / 1080);
       var stage = document.getElementById('stage');
       var w = 1920 * scale, h = 1080 * scale;
       stage.style.transform = 'scale(' + scale + ')';
-      stage.style.left = ((window.innerWidth - w) / 2) + 'px';
-      stage.style.top = ((window.innerHeight - h) / 2) + 'px';
+      stage.style.left = ((vw - w) / 2) + 'px';
+      stage.style.top = ((vh - h) / 2) + 'px';
     }
     window.addEventListener('resize', fitStage);
+    window.addEventListener('orientationchange', fitStage);
+    window.addEventListener('load', fitStage);
     fitStage();
+    setTimeout(fitStage, 300);
+    setTimeout(fitStage, 1000);
+    setTimeout(fitStage, 3000);
   </script>
 </body>
 </html>
