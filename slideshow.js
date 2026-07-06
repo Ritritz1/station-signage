@@ -67,15 +67,32 @@ async function listBucketFiles(folder) {
   }
 }
 
+async function getExcludedTitles() {
+  var sb = getSupabase();
+  if (!sb) return [];
+  try {
+    var { data: pub } = sb.storage.from(window.SUPABASE_BUCKET).getPublicUrl("config/excluded_films.json");
+    var res = await fetch(pub.publicUrl + "?_=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return [];
+    var json = await res.json().catch(function () { return null; });
+    return (json && json.excluded) ? json.excluded.map(function (t) { return t.toLowerCase(); }) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
 async function loadNewFilmPosters() {
   var res = await fetch("new_this_week.json?_=" + Date.now()).catch(function () { return null; });
   if (!res || !res.ok) return [];
   var data = await res.json().catch(function () { return null; });
   if (!data || !data.films || !data.films.length) return [];
 
+  var excluded = await getExcludedTitles();
+  var titles = data.films.filter(function (t) { return excluded.indexOf(t.toLowerCase()) === -1; });
+
   var slides = [];
-  for (var i = 0; i < data.films.length; i++) {
-    var title = data.films[i];
+  for (var i = 0; i < titles.length; i++) {
+    var title = titles[i];
     var images = await new Promise(function (resolve) { lookupImages(title, resolve); });
     if (images && (images.backdrop || images.poster)) {
       slides.push({
