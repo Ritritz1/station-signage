@@ -177,13 +177,30 @@ async function startSlideshow() {
   }
 
   function showCurrent() {
-    var slide = slides[i];
-    var vidEl = renderSlide(slide, container);
-    if (slide.type === "video" && vidEl) {
-      vidEl.onended = advance;
-      vidEl.onerror = function () { setTimeout(advance, 3000); };
-    } else {
-      setTimeout(advance, window.SLIDE_DURATION_MS.poster || 10000);
+    try {
+      var slide = slides[i];
+      if (!slide) { setTimeout(advance, 1000); return; }
+      var vidEl = renderSlide(slide, container);
+      if (slide.type === "video" && vidEl) {
+        var advanced = false;
+        var doAdvance = function () {
+          if (advanced) return;
+          advanced = true;
+          advance();
+        };
+        vidEl.onended = doAdvance;
+        vidEl.onerror = function () { setTimeout(doAdvance, 3000); };
+        vidEl.addEventListener("loadedmetadata", function () {
+          var ms = (isFinite(vidEl.duration) ? vidEl.duration : 180) * 1000 + 4000;
+          setTimeout(doAdvance, ms);
+        });
+        setTimeout(doAdvance, 5 * 60 * 1000);
+      } else {
+        setTimeout(advance, window.SLIDE_DURATION_MS.poster || 10000);
+      }
+    } catch (e) {
+      console.error("Slideshow render error, advancing anyway", e);
+      setTimeout(advance, 2000);
     }
   }
 
@@ -191,7 +208,10 @@ async function startSlideshow() {
 
   setInterval(async function () {
     var fresh = await buildSlideList();
-    if (fresh.length) slides = fresh;
+    if (fresh.length) {
+      slides = fresh;
+      if (i >= slides.length) i = 0;
+    }
   }, 15 * 60 * 1000);
 }
 
