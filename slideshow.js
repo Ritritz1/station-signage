@@ -14,8 +14,8 @@ function getSupabase() {
   return supabaseClient;
 }
 
-function tmdbPosterUrl(path, w) {
-  return path ? ("https://image.tmdb.org/t/p/w" + (w || 780) + path) : "";
+function tmdbImageUrl(path, w) {
+  return path ? ("https://image.tmdb.org/t/p/w" + (w || 1280) + path) : "";
 }
 
 function tmdbFetch(pathSuffix, params, cb) {
@@ -31,10 +31,11 @@ function tmdbFetch(pathSuffix, params, cb) {
   } catch (e) { cb(null); }
 }
 
-function lookupPoster(title, cb) {
+function lookupImages(title, cb) {
   tmdbFetch("/search/movie", { query: title, include_adult: false, region: "GB" }, function (s) {
     if (!s || !s.results || !s.results.length) return cb(null);
-    cb(s.results[0].poster_path || null);
+    var r = s.results[0];
+    cb({ backdrop: r.backdrop_path || null, poster: r.poster_path || null });
   });
 }
 
@@ -68,9 +69,14 @@ async function loadNewFilmPosters() {
   var slides = [];
   for (var i = 0; i < data.films.length; i++) {
     var title = data.films[i];
-    var posterPath = await new Promise(function (resolve) { lookupPoster(title, resolve); });
-    if (posterPath) {
-      slides.push({ type: "poster", title: title, url: tmdbPosterUrl(posterPath) });
+    var images = await new Promise(function (resolve) { lookupImages(title, resolve); });
+    if (images && (images.backdrop || images.poster)) {
+      slides.push({
+        type: "poster",
+        title: title,
+        backdropUrl: tmdbImageUrl(images.backdrop, 1280),
+        posterUrl: tmdbImageUrl(images.poster, 500)
+      });
     }
   }
   return slides;
@@ -105,22 +111,42 @@ function renderSlide(slide, container) {
   } else {
     var wrap = document.createElement("div");
     wrap.className = "slide-poster-wrap";
+
+    var bg = document.createElement("img");
+    bg.src = slide.backdropUrl || slide.posterUrl;
+    bg.className = "slide-backdrop";
+    wrap.appendChild(bg);
+
+    var scrim = document.createElement("div");
+    scrim.className = "slide-scrim";
+    wrap.appendChild(scrim);
+
     var logo = document.createElement("img");
     logo.src = "logo.png";
     logo.className = "slide-logo";
     wrap.appendChild(logo);
-    var img = document.createElement("img");
-    img.src = slide.url;
-    img.className = "slide-poster";
-    wrap.appendChild(img);
+
     var label = document.createElement("div");
     label.className = "slide-new-badge";
     label.textContent = "NEW THIS WEEK";
     wrap.appendChild(label);
+
+    var footer = document.createElement("div");
+    footer.className = "slide-footer";
+
+    if (slide.posterUrl) {
+      var thumb = document.createElement("img");
+      thumb.src = slide.posterUrl;
+      thumb.className = "slide-poster-thumb";
+      footer.appendChild(thumb);
+    }
+
     var title = document.createElement("div");
     title.className = "slide-title";
     title.textContent = slide.title;
-    wrap.appendChild(title);
+    footer.appendChild(title);
+
+    wrap.appendChild(footer);
     container.appendChild(wrap);
     return null;
   }
