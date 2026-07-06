@@ -35,7 +35,14 @@ function lookupImages(title, cb) {
   tmdbFetch("/search/movie", { query: title, include_adult: false, region: "GB" }, function (s) {
     if (!s || !s.results || !s.results.length) return cb(null);
     var r = s.results[0];
-    cb({ backdrop: r.backdrop_path || null, poster: r.poster_path || null });
+    var today = new Date().toISOString().slice(0, 10);
+    var isComingSoon = !!(r.release_date && r.release_date > today);
+    cb({
+      backdrop: r.backdrop_path || null,
+      poster: r.poster_path || null,
+      releaseDate: r.release_date || null,
+      comingSoon: isComingSoon
+    });
   });
 }
 
@@ -75,7 +82,8 @@ async function loadNewFilmPosters() {
         type: "poster",
         title: title,
         backdropUrl: tmdbImageUrl(images.backdrop, 1280),
-        posterUrl: tmdbImageUrl(images.poster, 500)
+        posterUrl: tmdbImageUrl(images.poster, 500),
+        comingSoon: images.comingSoon
       });
     }
   }
@@ -127,8 +135,8 @@ function renderSlide(slide, container) {
     wrap.appendChild(logo);
 
     var label = document.createElement("div");
-    label.className = "slide-new-badge";
-    label.textContent = "NEW THIS WEEK";
+    label.className = "slide-new-badge" + (slide.comingSoon ? " coming-soon" : "");
+    label.textContent = slide.comingSoon ? "COMING SOON" : "NEW THIS WEEK";
     wrap.appendChild(label);
 
     var footer = document.createElement("div");
