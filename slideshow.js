@@ -120,14 +120,24 @@ function renderSlide(slide, container) {
     var wrap = document.createElement("div");
     wrap.className = "slide-poster-wrap";
 
+    var hasBackdrop = !!slide.backdropUrl;
+    var bgSrc = slide.backdropUrl || slide.posterUrl;
+
     var bg = document.createElement("img");
-    bg.src = slide.backdropUrl || slide.posterUrl;
-    bg.className = "slide-backdrop";
+    bg.src = bgSrc;
+    bg.className = "slide-backdrop" + (hasBackdrop ? "" : " blurred");
     wrap.appendChild(bg);
 
     var scrim = document.createElement("div");
     scrim.className = "slide-scrim";
     wrap.appendChild(scrim);
+
+    if (!hasBackdrop && slide.posterUrl) {
+      var centerPoster = document.createElement("img");
+      centerPoster.src = slide.posterUrl;
+      centerPoster.className = "slide-center-poster";
+      wrap.appendChild(centerPoster);
+    }
 
     var logo = document.createElement("img");
     logo.src = "logo.png";
@@ -142,7 +152,7 @@ function renderSlide(slide, container) {
     var footer = document.createElement("div");
     footer.className = "slide-footer";
 
-    if (slide.posterUrl) {
+    if (hasBackdrop && slide.posterUrl) {
       var thumb = document.createElement("img");
       thumb.src = slide.posterUrl;
       thumb.className = "slide-poster-thumb";
