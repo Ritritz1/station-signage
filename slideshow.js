@@ -105,6 +105,10 @@ function renderSlide(slide, container) {
   } else {
     var wrap = document.createElement("div");
     wrap.className = "slide-poster-wrap";
+    var logo = document.createElement("img");
+    logo.src = "logo.png";
+    logo.className = "slide-logo";
+    wrap.appendChild(logo);
     var img = document.createElement("img");
     img.src = slide.url;
     img.className = "slide-poster";
