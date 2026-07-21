@@ -2,17 +2,8 @@
 """
 Scrapes https://www.stationcinema.com/whatson/all
 
-KEY INSIGHT: In the raw HTML, each film block looks like:
-  <element>FILM TITLE</element>
-  <element>Running time: N mins</element>
-  <element>Genre, Genre</element>  <- optional, ignored
-  <element>Day DD Month YYYY</element>
-  <element>HH:MM</element>
-  ...repeated dates/times...
-
-We use regex on the raw HTML to extract (title, running_time) pairs,
-then find dates and times in the HTML block that follows each film.
-This completely avoids the genre-line problem.
+APPROACH: Film titles are in <h1> tags. Dates and times follow each film block.
+This completely avoids genre-line false positives.
 """
 import re, urllib.request, sys, json
 from datetime import datetime
@@ -24,48 +15,22 @@ MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
 MONTH_NAMES = ["January","February","March","April","May","June",
                "July","August","September","October","November","December"]
 
-TITLE_FIXES = {
-    "NT LIVE: ALL MY SONS": "NT Live: All My Sons",
-    "NT LIVE: LES LIAISONS DANGEREUSES": "NT Live: Les Liaisons Dangereuses",
-    "NT LIVE: THE PLAYBOY OF THE WESTERN WORLD": "NT Live: The Playboy of the Western World",
-    "NT LIVE: THE AUDIENCE": "NT Live: The Audience",
-    "NT LIVE: THE MISANTHROPE": "NT Live: The Misanthrope",
-    "RBO: THE MAGIC FLUTE": "RBO: The Magic Flute",
-    "RBO: SIEGFRIED": "RBO: Siegfried",
-    "MET OPERA: EUGENE ONEGIN": "MET Opera: Eugene Onegin",
-    "MET OPERA 26/27: COSI FAN TUTTE": "Met Opera 26/27: Cosi Fan Tutte",
-    "DOG FRIENDLY SCREENING: MOANA": "Dog Friendly Screening: Moana",
-    "DOG FRIENDLY SCREENING: THE DEVIL WEARS PAW-DA 2": "Dog Friendly Screening: The Devil Wears Paw-da 2",
-    "EXHIBITION ON SCREEN : FRIDA KAHLO": "Exhibition On Screen: FRIDA KAHLO",
-    "EXHIBITION ON SCREEN: FRIDA KAHLO": "Exhibition On Screen: FRIDA KAHLO",
-    "EXHIBITION ON SCREEN: TURNER & CONSTABLE": "Exhibition On Screen: TURNER & CONSTABLE",
-    "EXHIBITION ON SCREEN: JAMES MCNEIL WHISTLER": "Exhibition On Screen: James McNeil Whistler",
-    "POWER TO THE PEOPLE: JOHN & YOKO LIVE IN NYC": "Power To The People: John & Yoko Live in NYC",
-    "STAR WARS: THE MANDALORIAN AND GROGU": "Star Wars: The Mandalorian and Grogu",
-    "SPIDER-MAN: BRAND NEW DAY": "Spider-Man: Brand New Day",
-    "WHAM! 10 DAYS IN CHINA": "WHAM! 10 Days in China",
-    "SHARE A CAN FOR SHREK": "Share a Can for Shrek",
-    "COSI FAN TUTTE  MOZART": "Cosi Fan Tutte - Mozart",
-    "ANDRE RIEU'S 2026 SUMMER CONCERT: VIVA MAASTRICHT!": "Andre Rieu's 2026 Summer Concert: Viva Maastricht!",
-    "ANDRE RIEU\u2019S 2026 SUMMER CONCERT: VIVA MAASTRICHT!": "Andre Rieu's 2026 Summer Concert: Viva Maastricht!",
-}
-MINOR = {"a","an","the","and","but","or","for","nor","on","at","to","by","in","of","up","as","is","de","van","la","le"}
-
-def to_title(s):
+def clean_title(s):
+    """Clean up a film title - fix encoding and normalise."""
     s = s.strip()
-    if s in TITLE_FIXES:
-        return TITLE_FIXES[s]
-    words = s.split()
-    result = []
-    for i, w in enumerate(words):
-        if i == 0 or w.lower() not in MINOR:
-            if re.match(r'^[A-Z]{1,3}[!]?$', w):
-                result.append(w)
-            else:
-                result.append(w.capitalize())
-        else:
-            result.append(w.lower())
-    return " ".join(result)
+    # Fix common encoding issues
+    replacements = [
+        ("\u00e2\u0080\u0099", "'"), ("\u00e2\u0080\u0098", "'"),
+        ("\u00e2\u0080\u0093", "-"), ("\u00e2\u0080\u0094", "-"),
+        ("\ufffd", "'"), ("\u00ef\u00bf\u00bd", "'"),
+        ("\u00c3\u00a9", "\u00e9"), ("\u00c3\u00a8", "\u00e8"),
+        ("\u00c3\u00a0", "\u00e0"), ("\u00c2\u00a0", " "),
+    ]
+    for old, new in replacements:
+        s = s.replace(old, new)
+    # Remove extra whitespace
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={
@@ -91,13 +56,12 @@ def extract_showtimes(html):
     section = html[start:end if end > start else len(html)]
     print(f"Section: {len(section)} chars")
 
-    # Split section on "Running time:" — each split gives us:
-    # [0] = preamble with film title at the end
-    # [1..] = genre + dates/times block
-    parts = re.split(r'Running time:[^<]*', section)
-    print(f"Film blocks: {len(parts)-1}")
+    # Split on <h1> tags - each film starts with its title in an <h1>
+    # Pattern: <h1 ...>FILM TITLE</h1> ... dates/times ... <h1>next film</h1>
+    h1_pat = re.compile(r'<h1[^>]*>(.*?)</h1>', re.IGNORECASE | re.DOTALL)
+    h1_matches = list(h1_pat.finditer(section))
+    print(f"Found {len(h1_matches)} film titles (h1 tags)")
 
-    # Date+time pattern in raw HTML (dates and times are separate tags)
     DATE_PAT = re.compile(
         r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
         r'\s+(\d{1,2})\s+'
@@ -107,71 +71,44 @@ def extract_showtimes(html):
     )
     TIME_PAT = re.compile(r'\b(\d{1,2}:\d{2})\b')
 
-    # HTML tag strip
-    def strip(s):
+    def strip_tags(s):
         s = re.sub(r'<[^>]+>', ' ', s)
         s = re.sub(r'&amp;', '&', s)
-        s = re.sub(r'&ndash;|&#8211;|\u2013', '-', s)
+        s = re.sub(r'&ndash;|&#8211;', '-', s)
         s = re.sub(r'&[a-z#0-9]+;', ' ', s)
-        s = re.sub(r'\s+', ' ', s)
-        return s.strip()
+        return re.sub(r'\s+', ' ', s).strip()
 
     schedule = defaultdict(lambda: defaultdict(set))
 
-    for i, part in enumerate(parts):
-        if i == 0:
-            continue  # preamble before first film
-
-        # Film title: last non-empty text node in the PREVIOUS part
-        prev = parts[i-1]
-        # Strip HTML tags from previous part to get text
-        prev_text = strip(prev)
-        # The film title is the last meaningful chunk
-        # Split by newlines/sentences and take the last non-trivial one
-        candidates = [c.strip() for c in re.split(r'[\n\r]+|(?<=[.!?])\s+', prev_text) if c.strip()]
-        film_raw = None
-        for c in reversed(candidates):
-            if len(c) < 2:
-                continue
-            film_raw = c
-            break
-
-        if not film_raw:
+    for i, h1_match in enumerate(h1_matches):
+        raw_title = strip_tags(h1_match.group(1))
+        film = clean_title(raw_title)
+        if not film or len(film) < 2:
             continue
-
-        # Clean up: remove any trailing numbers or short fragments
-        film_raw = re.sub(r'\s+\d+\s*$', '', film_raw).strip()
-        if len(film_raw) < 2:
-            continue
-
-        film = to_title(film_raw)
         print(f"  Film: {film}")
 
-        # Dates and times are in the current part (after Running time:)
-        # The page duplicates each date block twice — use a set to deduplicate
-        block_text = strip(part)
-        seen_dates = set()
-        current_date = None
+        # Get the block between this h1 and the next h1
+        block_start = h1_match.end()
+        block_end = h1_matches[i+1].start() if i+1 < len(h1_matches) else len(section)
+        block = section[block_start:block_end]
+        block_text = strip_tags(block)
 
-        # Parse line by line
-        block_lines = [l.strip() for l in block_text.split() if l.strip()]
-        # Reconstruct into date/time chunks
-        # Find all dates in this block
+        # Find all dates and their following times
+        seen = set()
         for dm in DATE_PAT.finditer(block_text):
             month = MONTHS.get(dm.group(3).lower(), 0)
             if not month:
                 continue
             date_key = f"{int(dm.group(4)):04d}-{month:02d}-{int(dm.group(2)):02d}"
-            # Find times that follow this date (before next date)
-            date_end = dm.end()
-            next_date = DATE_PAT.search(block_text, date_end)
-            next_pos = next_date.start() if next_date else len(block_text)
-            time_chunk = block_text[date_end:next_pos]
-            times = TIME_PAT.findall(time_chunk)
-            key = (date_key, frozenset(times))
-            if key not in seen_dates and times:
-                seen_dates.add(key)
-                for t in times:
+            # Times follow the date until the next date
+            time_start = dm.end()
+            next_dm = DATE_PAT.search(block_text, time_start)
+            time_end = next_dm.start() if next_dm else len(block_text)
+            times = TIME_PAT.findall(block_text[time_start:time_end])
+            key = (date_key, tuple(sorted(set(times))))
+            if key not in seen and times:
+                seen.add(key)
+                for t in set(times):
                     schedule[date_key][film].add(t)
 
     return schedule
@@ -205,11 +142,9 @@ def render_js(schedule):
     for date_key in sorted(schedule.keys()):
         dt = datetime.strptime(date_key, "%Y-%m-%d")
         lines += [
-            "",
-            "  /* =======================",
+            "", "  /* =======================",
             f"   * {dt.strftime('%A')} {dt.day} {MONTH_NAMES[dt.month-1]} {dt.year}",
-            "   * ======================= */",
-            f'  "{date_key}": ['
+            "   * ======================= */", f'  "{date_key}": ['
         ]
         for film, times_set in sorted(schedule[date_key].items()):
             ts = ", ".join(f'"{t}"' for t in sorted(times_set))
