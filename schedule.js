@@ -159,7 +159,7 @@ window.SCHEDULE = {
    * Wednesday 5 August 2026
    * ======================= */
   "2026-08-05": [
-    { film: "LOHENGRIN  Wagner", times: ["19:15"] },
+    { film: "LOHENGRIN Â Wagner", times: ["19:15"] },
     { film: "Spider-Man: Brand New Day", times: ["15:30", "19:00"] },
   ],
 
@@ -174,14 +174,14 @@ window.SCHEDULE = {
    * Saturday 8 August 2026
    * ======================= */
   "2026-08-08": [
-    { film: "André Rieu's 2026 Summer Concert: Viva Maastricht!", times: ["16:00"] },
+    { film: "AndrÃ© Rieu's 2026 Summer Concert: Viva Maastricht!", times: ["16:00"] },
   ],
 
   /* =======================
    * Sunday 9 August 2026
    * ======================= */
   "2026-08-09": [
-    { film: "André Rieu's 2026 Summer Concert: Viva Maastricht!", times: ["14:00"] },
+    { film: "AndrÃ© Rieu's 2026 Summer Concert: Viva Maastricht!", times: ["14:00"] },
   ],
 
   /* =======================
@@ -195,7 +195,7 @@ window.SCHEDULE = {
    * Wednesday 2 September 2026
    * ======================= */
   "2026-09-02": [
-    { film: "Cosi Fan Tutte  Mozart", times: ["19:30"] },
+    { film: "Cosi Fan Tutte Â Mozart", times: ["19:30"] },
   ],
 
   /* =======================
