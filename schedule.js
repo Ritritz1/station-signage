@@ -129,7 +129,7 @@ window.SCHEDULE = {
    * Wednesday 2 September 2026
    * ======================= */
   "2026-09-02": [
-    { film: "Cosi Fan Tutte  Mozart", times: ["19:30"] },
+    { film: "Cosi Fan Tutte Â Mozart", times: ["19:30"] },
   ],
 
   /* =======================
@@ -259,7 +259,7 @@ window.SCHEDULE = {
    * Tuesday 6 October 2026
    * ======================= */
   "2026-10-06": [
-    { film: "The Peoples Emergency Briefing Q&A", times: ["19:00"] },
+    { film: "The PeopleÂs Emergency Briefing Q&A", times: ["19:00"] },
   ],
 
   /* =======================
@@ -399,7 +399,7 @@ window.SCHEDULE = {
    * Saturday 5 December 2026
    * ======================= */
   "2026-12-05": [
-    { film: "André Rieus 2026 Christmas Concert: Let It Snow", times: ["19:30"] },
+    { film: "AndrÃ© RieuÂs 2026 Christmas Concert: Let It Snow", times: ["19:30"] },
     { film: "The Polar Express: Pyjama Party", times: ["18:30"] },
   ],
 
@@ -407,7 +407,7 @@ window.SCHEDULE = {
    * Sunday 6 December 2026
    * ======================= */
   "2026-12-06": [
-    { film: "André Rieus 2026 Christmas Concert: Let It Snow", times: ["14:00"] },
+    { film: "AndrÃ© RieuÂs 2026 Christmas Concert: Let It Snow", times: ["14:00"] },
     { film: "Love Actually", times: ["18:00"] },
   ],
 
@@ -415,7 +415,7 @@ window.SCHEDULE = {
    * Tuesday 8 December 2026
    * ======================= */
   "2026-12-08": [
-    { film: "Dont Go Into The Cellar Theatre Presents: Sherlock Holmes Christmas Casebook", times: ["19:30"] },
+    { film: "DonÂt Go Into The Cellar Theatre Presents: ÂSherlock HolmesÂ Christmas CasebookÂ", times: ["19:30"] },
   ],
 
   /* =======================
@@ -523,7 +523,7 @@ window.SCHEDULE = {
    * Tuesday 23 March 2027
    * ======================= */
   "2027-03-23": [
-    { film: "RBO 26/27: Alices Adventures In Wonderland", times: ["19:15"] },
+    { film: "RBO 26/27: AliceÂs Adventures In Wonderland", times: ["19:15"] },
   ],
 
   /* =======================
@@ -544,7 +544,7 @@ window.SCHEDULE = {
    * Sunday 28 March 2027
    * ======================= */
   "2027-03-28": [
-    { film: "RBO 26/27: Alices Adventures In Wonderland", times: ["14:00"] },
+    { film: "RBO 26/27: AliceÂs Adventures In Wonderland", times: ["14:00"] },
   ],
 
   /* =======================
