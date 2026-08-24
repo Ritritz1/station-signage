@@ -1,9 +1,10 @@
 /* ============================================================
-   Slideshow carousel logic.
-   Cycles through: base videos (from Supabase "base/" folder) ->
-   new-this-week film posters (TMDB) -> uploaded videos (from
-   Supabase "uploads/" folder) -> loop.
-   ============================================================ */
+Slideshow carousel logic.
+Cycles through: base videos (from Supabase "base/" folder) ->
+new-this-week film posters (TMDB, falling back to the cinema's own
+website poster if TMDB has nothing) -> uploaded videos (from
+Supabase "uploads/" folder) -> loop.
+============================================================ */
 
 var supabaseClient = null;
 function getSupabase() {
@@ -45,6 +46,59 @@ function lookupImages(title, cb) {
     });
   });
 }
+
+/* ---- NEW: fallback poster source (the cinema's own website) ---- */
+
+var _eventCodesCache = null;
+
+async function getEventCodes() {
+  if (_eventCodesCache) return _eventCodesCache;
+  try {
+    var res = await fetch("event_codes.json?_=" + Date.now(), { cache: "no-store" });
+    _eventCodesCache = res.ok ? await res.json().catch(function () { return {}; }) : {};
+  } catch (e) {
+    _eventCodesCache = {};
+  }
+  return _eventCodesCache;
+}
+
+// Tries the known stationcinema.com / admit-one poster URL patterns for a
+// given event code, in order, returning the first one that actually loads
+// as an image. Cheap because these are just <img> loads, not fetch() calls,
+// so no CORS issues even though the images live on another origin.
+function tryStationPosterUrls(code) {
+  var patterns = [
+    "https://www.stationcinema.com/filmimages/small/" + code + ".jpg",
+    "https://images.admit-one.eu/filmimages/small/" + code + ".jpg",
+    "https://stationcinema.admit-one.eu/sites/STATIONCINEMA/STATIONCINEMA/eventImages/" + code + "_0.jpg"
+  ];
+  return new Promise(function (resolve) {
+    var i = 0;
+    function tryNext() {
+      if (i >= patterns.length) return resolve(null);
+      var url = patterns[i++];
+      var img = new Image();
+      img.onload = function () { resolve(url); };
+      img.onerror = tryNext;
+      img.src = url;
+    }
+    tryNext();
+  });
+}
+
+async function lookupStationFallback(title) {
+  var codes = await getEventCodes();
+  var code = codes[title];
+  if (!code) return null;
+  var url = await tryStationPosterUrls(code);
+  if (!url) return null;
+  // Station website only gives us one image size/crop, so we use it as
+  // both "backdrop" and "poster" - renderSlide() already handles a
+  // poster-only slide gracefully (blurred full-bleed + no thumb).
+  return { backdrop: null, poster: url, isFallbackUrl: true, comingSoon: false };
+}
+
+/* ---- end new ---- */
 
 async function listBucketFiles(folder) {
   var sb = getSupabase();
@@ -94,12 +148,18 @@ async function loadNewFilmPosters() {
   for (var i = 0; i < titles.length; i++) {
     var title = titles[i];
     var images = await new Promise(function (resolve) { lookupImages(title, resolve); });
+
+    // NEW: if TMDb had nothing usable, try the cinema's own website poster
+    if (!images || (!images.backdrop && !images.poster)) {
+      images = await lookupStationFallback(title);
+    }
+
     if (images && (images.backdrop || images.poster)) {
       slides.push({
         type: "poster",
         title: title,
-        backdropUrl: tmdbImageUrl(images.backdrop, 1280),
-        posterUrl: tmdbImageUrl(images.poster, 500),
+        backdropUrl: images.isFallbackUrl ? "" : tmdbImageUrl(images.backdrop, 1280),
+        posterUrl: images.isFallbackUrl ? images.poster : tmdbImageUrl(images.poster, 500),
         comingSoon: images.comingSoon
       });
     }

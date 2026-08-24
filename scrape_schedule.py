@@ -4,6 +4,12 @@ Scrapes https://www.stationcinema.com/whatson/all
 
 APPROACH: Film titles are in <h1> tags. Dates and times follow each film block.
 This completely avoids genre-line false positives.
+
+CHANGE: also captures each film's Admit One event code (from the nearest
+/event/{code} link preceding its <h1>) and writes it to event_codes.json.
+This lets slideshow.js fall back to the cinema's own poster image
+(https://www.stationcinema.com/filmimages/small/{code}.jpg) whenever TMDb
+has no poster for a title.
 """
 import re, urllib.request, sys, json
 from datetime import datetime
@@ -11,14 +17,17 @@ from collections import defaultdict
 
 URL = "https://www.stationcinema.com/whatson/all"
 MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
-          "july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
+"july":7,"august":8,"september":9,"october":10,"november":11,"december":12}
 MONTH_NAMES = ["January","February","March","April","May","June",
-               "July","August","September","October","November","December"]
+"July","August","September","October","November","December"]
+
+EVENT_LINK_PAT = re.compile(r'/event/(\d+)')
+EVENT_LOOKBACK_CHARS = 800  # how far before each <h1> to search for its event link
+
 
 def clean_title(s):
     """Clean up a film title - fix encoding and normalise."""
     s = s.strip()
-    # Fix common encoding issues
     replacements = [
         ("\u00e2\u0080\u0099", "'"), ("\u00e2\u0080\u0098", "'"),
         ("\u00e2\u0080\u0093", "-"), ("\u00e2\u0080\u0094", "-"),
@@ -28,9 +37,9 @@ def clean_title(s):
     ]
     for old, new in replacements:
         s = s.replace(old, new)
-    # Remove extra whitespace
     s = re.sub(r'\s+', ' ', s).strip()
     return s
+
 
 def fetch_page():
     req = urllib.request.Request(URL, headers={
@@ -39,25 +48,23 @@ def fetch_page():
     })
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()
-        print(f"HTTP {resp.status}, {len(data)} bytes")
-        try:
-            return data.decode("utf-8")
-        except UnicodeDecodeError:
-            return data.decode("latin-1")
+    print(f"HTTP {resp.status}, {len(data)} bytes")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("latin-1")
+
 
 def extract_showtimes(html):
-    # Find the showtimes section
     soldout_idx = html.find('soldOutOverride')
     start = html.find('Showtimes', soldout_idx if soldout_idx > 0 else 0)
     if start == -1:
         print("ERROR: Cannot find Showtimes section")
-        return {}
+        return {}, {}
     end = html.find('Check Our Socials', start)
     section = html[start:end if end > start else len(html)]
     print(f"Section: {len(section)} chars")
 
-    # Split on <h1> tags - each film starts with its title in an <h1>
-    # Pattern: <h1 ...>FILM TITLE</h1> ... dates/times ... <h1>next film</h1>
     h1_pat = re.compile(r'<h1[^>]*>(.*?)</h1>', re.IGNORECASE | re.DOTALL)
     h1_matches = list(h1_pat.finditer(section))
     print(f"Found {len(h1_matches)} film titles (h1 tags)")
@@ -79,6 +86,7 @@ def extract_showtimes(html):
         return re.sub(r'\s+', ' ', s).strip()
 
     schedule = defaultdict(lambda: defaultdict(set))
+    event_codes = {}
 
     for i, h1_match in enumerate(h1_matches):
         raw_title = strip_tags(h1_match.group(1))
@@ -87,20 +95,28 @@ def extract_showtimes(html):
             continue
         print(f"  Film: {film}")
 
-        # Get the block between this h1 and the next h1
+        # --- NEW: find this film's Admit One event code ---
+        # Look for the nearest /event/{code} link in the chunk of markup
+        # immediately before this film's <h1>. The event card/link is what
+        # wraps or precedes the poster image + title on the listings page.
+        lookback_start = max(0, h1_match.start() - EVENT_LOOKBACK_CHARS)
+        lookback_chunk = section[lookback_start:h1_match.start()]
+        event_matches = list(EVENT_LINK_PAT.finditer(lookback_chunk))
+        if event_matches and film not in event_codes:
+            event_codes[film] = event_matches[-1].group(1)
+        # --- end new ---
+
         block_start = h1_match.end()
         block_end = h1_matches[i+1].start() if i+1 < len(h1_matches) else len(section)
         block = section[block_start:block_end]
         block_text = strip_tags(block)
 
-        # Find all dates and their following times
         seen = set()
         for dm in DATE_PAT.finditer(block_text):
             month = MONTHS.get(dm.group(3).lower(), 0)
             if not month:
                 continue
             date_key = f"{int(dm.group(4)):04d}-{month:02d}-{int(dm.group(2)):02d}"
-            # Times follow the date until the next date
             time_start = dm.end()
             next_dm = DATE_PAT.search(block_text, time_start)
             time_end = next_dm.start() if next_dm else len(block_text)
@@ -111,7 +127,8 @@ def extract_showtimes(html):
                 for t in set(times):
                     schedule[date_key][film].add(t)
 
-    return schedule
+    return schedule, event_codes
+
 
 def is_uk_bank_holiday():
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -127,6 +144,7 @@ def is_uk_bank_holiday():
     except Exception as e:
         print(f"Could not check bank holidays: {e}")
         return False
+
 
 def render_js(schedule):
     lines = [
@@ -153,13 +171,8 @@ def render_js(schedule):
     lines += ["};", ""]
     return "\n".join(lines)
 
+
 def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_this_week.json"):
-    """
-    Tracks which film titles are newly appearing in the schedule.
-    - seen_films.json: every title we've ever seen, with the date first seen.
-    - new_this_week.json: titles first seen within the last 7 days (this is
-      what the slideshow reads from).
-    """
     try:
         with open(seen_path, "r", encoding="utf-8") as f:
             seen = json.load(f)
@@ -188,6 +201,13 @@ def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_th
     print(f"New this week: {new_titles}")
 
 
+def write_event_codes(event_codes, path="event_codes.json"):
+    """NEW: writes {title: admit_one_event_code} for slideshow.js's poster fallback."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(event_codes, f, indent=2, ensure_ascii=False)
+    print(f"Wrote {len(event_codes)} event codes to {path}")
+
+
 if __name__ == "__main__":
     today_weekday = datetime.utcnow().weekday()
     if today_weekday == 2 and is_uk_bank_holiday():
@@ -197,7 +217,7 @@ if __name__ == "__main__":
     print(f"Fetching {URL}")
     html = fetch_page()
     print(f"Page: {len(html)} chars")
-    schedule = extract_showtimes(html)
+    schedule, event_codes = extract_showtimes(html)
     if not schedule:
         print("WARNING: No schedule data found")
         sys.exit(1)
@@ -206,4 +226,5 @@ if __name__ == "__main__":
     with open("schedule.js", "w", encoding="utf-8") as f:
         f.write(render_js(schedule))
     update_new_this_week(schedule)
+    write_event_codes(event_codes)
     print("Done")
