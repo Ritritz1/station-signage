@@ -5,11 +5,19 @@ Scrapes https://www.stationcinema.com/whatson/all
 APPROACH: Film titles are in <h1> tags. Dates and times follow each film block.
 This completely avoids genre-line false positives.
 
-CHANGE: also captures each film's Admit One event code (from the nearest
-/event/{code} link preceding its <h1>) and writes it to event_codes.json.
-This lets slideshow.js fall back to the cinema's own poster image
-(https://www.stationcinema.com/filmimages/small/{code}.jpg) whenever TMDb
-has no poster for a title.
+CHANGE: also captures each film's poster image URL (the <img src="..."> that
+appears immediately before its <h1> on the listings page) and writes it to
+event_codes.json (kept that filename for compatibility, but it now stores
+{title: full_poster_image_url} rather than a code).
+
+FIX (v2): the listings page does NOT use /event/{code} links anywhere - that
+pattern only exists on individual event detail pages. The actual poster image
+is embedded directly, in one of two URL shapes depending on the film:
+  https://stationcinema.admit-one.eu//sites/STATIONCINEMA/STATIONCINEMA/eventImages/{code}_{n}.jpg
+  https://images.admit-one.eu//filmimages/small/{code}.jpg
+(the eventImages suffix is a variable index like _0 or _1, not always _0).
+We now match either shape directly and store the real, working image URL, so
+slideshow.js doesn't need to guess/try multiple constructed URL patterns.
 """
 import re, urllib.request, sys, json
 from datetime import datetime
@@ -21,8 +29,11 @@ MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
 MONTH_NAMES = ["January","February","March","April","May","June",
 "July","August","September","October","November","December"]
 
-EVENT_LINK_PAT = re.compile(r'/event/(\d+)')
-EVENT_LOOKBACK_CHARS = 800  # how far before each <h1> to search for its event link
+# Matches the poster <img src="..."> in either of the two shapes the site uses.
+POSTER_IMG_PAT = re.compile(
+    r'src="([^"]*(?:eventImages/\d+_\d+\.jpg|filmimages/small/\d+\.jpg))"'
+)
+EVENT_LOOKBACK_CHARS = 1200  # how far before each <h1> to search for its poster image
 
 
 def clean_title(s):
@@ -86,7 +97,7 @@ def extract_showtimes(html):
         return re.sub(r'\s+', ' ', s).strip()
 
     schedule = defaultdict(lambda: defaultdict(set))
-    event_codes = {}
+    poster_urls = {}
 
     for i, h1_match in enumerate(h1_matches):
         raw_title = strip_tags(h1_match.group(1))
@@ -95,16 +106,22 @@ def extract_showtimes(html):
             continue
         print(f"  Film: {film}")
 
-        # --- NEW: find this film's Admit One event code ---
-        # Look for the nearest /event/{code} link in the chunk of markup
-        # immediately before this film's <h1>. The event card/link is what
-        # wraps or precedes the poster image + title on the listings page.
+        # --- find this film's poster image URL ---
+        # The poster <img> sits immediately before this film's <h1> in the
+        # listings markup. Take the last match in the lookback window (i.e.
+        # the one closest to this h1), so we don't accidentally grab the
+        # previous film's poster.
         lookback_start = max(0, h1_match.start() - EVENT_LOOKBACK_CHARS)
         lookback_chunk = section[lookback_start:h1_match.start()]
-        event_matches = list(EVENT_LINK_PAT.finditer(lookback_chunk))
-        if event_matches and film not in event_codes:
-            event_codes[film] = event_matches[-1].group(1)
-        # --- end new ---
+        img_matches = POSTER_IMG_PAT.findall(lookback_chunk)
+        if img_matches and film not in poster_urls:
+            url = img_matches[-1]
+            if url.startswith("//"):
+                url = "https:" + url
+            elif url.startswith("/"):
+                url = "https://www.stationcinema.com" + url
+            poster_urls[film] = url
+        # --- end ---
 
         block_start = h1_match.end()
         block_end = h1_matches[i+1].start() if i+1 < len(h1_matches) else len(section)
@@ -127,7 +144,7 @@ def extract_showtimes(html):
                 for t in set(times):
                     schedule[date_key][film].add(t)
 
-    return schedule, event_codes
+    return schedule, poster_urls
 
 
 def is_uk_bank_holiday():
@@ -201,11 +218,11 @@ def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_th
     print(f"New this week: {new_titles}")
 
 
-def write_event_codes(event_codes, path="event_codes.json"):
-    """NEW: writes {title: admit_one_event_code} for slideshow.js's poster fallback."""
+def write_event_codes(poster_urls, path="event_codes.json"):
+    """Writes {title: poster_image_url} for slideshow.js's TMDb-fallback poster."""
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(event_codes, f, indent=2, ensure_ascii=False)
-    print(f"Wrote {len(event_codes)} event codes to {path}")
+        json.dump(poster_urls, f, indent=2, ensure_ascii=False)
+    print(f"Wrote {len(poster_urls)} poster URLs to {path}")
 
 
 if __name__ == "__main__":
@@ -217,7 +234,7 @@ if __name__ == "__main__":
     print(f"Fetching {URL}")
     html = fetch_page()
     print(f"Page: {len(html)} chars")
-    schedule, event_codes = extract_showtimes(html)
+    schedule, poster_urls = extract_showtimes(html)
     if not schedule:
         print("WARNING: No schedule data found")
         sys.exit(1)
@@ -226,5 +243,5 @@ if __name__ == "__main__":
     with open("schedule.js", "w", encoding="utf-8") as f:
         f.write(render_js(schedule))
     update_new_this_week(schedule)
-    write_event_codes(event_codes)
+    write_event_codes(poster_urls)
     print("Done")
