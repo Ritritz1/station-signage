@@ -2,8 +2,9 @@
 Slideshow carousel logic.
 Cycles through: base videos (from Supabase "base/" folder) ->
 new-this-week film posters (TMDB, falling back to the cinema's own
-website poster if TMDB has nothing) -> uploaded videos (from
-Supabase "uploads/" folder) -> loop.
+website poster if TMDB has nothing OR its top match isn't confirmed
+as the right film) -> uploaded videos (from Supabase "uploads/"
+folder) -> loop.
 ============================================================ */
 
 var supabaseClient = null;
@@ -32,23 +33,55 @@ function tmdbFetch(pathSuffix, params, cb) {
   } catch (e) { cb(null); }
 }
 
-function lookupImages(title, cb) {
+// Generic one-word titles (e.g. "Lady") can collide with a completely
+// different film of the same name - there really are two unrelated
+// 2025/2026 films both called "Lady". TMDb's top search hit is not
+// guaranteed to be the one Station is actually showing, so when we know
+// the real runtime (from the listings page), we check TMDb's candidates
+// in order and only trust the first one whose runtime is close enough.
+// Without a known runtime we fall back to the old "just trust the top
+// hit" behaviour, since that's the best information available.
+var RUNTIME_TOLERANCE_MINS = 3;
+
+function lookupImages(title, expectedRuntimeMins, cb) {
   tmdbFetch("/search/movie", { query: title, include_adult: false, region: "GB" }, function (s) {
     if (!s || !s.results || !s.results.length) return cb(null);
-    var r = s.results[0];
-    var today = new Date().toISOString().slice(0, 10);
-    var isComingSoon = !!(r.release_date && r.release_date > today);
-    cb({
-      backdrop: r.backdrop_path || null,
-      poster: r.poster_path || null,
-      releaseDate: r.release_date || null,
-      comingSoon: isComingSoon
-    });
+
+    if (!expectedRuntimeMins) {
+      return cb(resultToImages(s.results[0]));
+    }
+
+    var candidates = s.results.slice(0, 5);
+    var idx = 0;
+    function tryNext() {
+      if (idx >= candidates.length) return cb(null); // no confirmed match - let caller fall back
+      var candidate = candidates[idx++];
+      tmdbFetch("/movie/" + candidate.id, {}, function (details) {
+        var runtime = details && details.runtime;
+        if (runtime && Math.abs(runtime - expectedRuntimeMins) <= RUNTIME_TOLERANCE_MINS) {
+          cb(resultToImages(candidate));
+        } else {
+          tryNext();
+        }
+      });
+    }
+    tryNext();
   });
 }
 
+function resultToImages(r) {
+  var today = new Date().toISOString().slice(0, 10);
+  var isComingSoon = !!(r.release_date && r.release_date > today);
+  return {
+    backdrop: r.backdrop_path || null,
+    poster: r.poster_path || null,
+    releaseDate: r.release_date || null,
+    comingSoon: isComingSoon
+  };
+}
+
 /* ---- fallback poster source (the cinema's own website) ----
-   event_codes.json (name kept for compatibility) now maps
+   event_codes.json (name kept for compatibility) maps
    {title: full poster image URL}, captured directly from the listings
    page by scrape_schedule.py - no URL-pattern guessing needed here. */
 
@@ -134,13 +167,18 @@ async function loadNewFilmPosters() {
 
   var excluded = await getExcludedTitles();
   var titles = data.films.filter(function (t) { return excluded.indexOf(t.toLowerCase()) === -1; });
+  var runtimes = data.runtimes || {};
 
   var slides = [];
   for (var i = 0; i < titles.length; i++) {
     var title = titles[i];
-    var images = await new Promise(function (resolve) { lookupImages(title, resolve); });
+    var expectedRuntime = runtimes[title] || null;
+    var images = await new Promise(function (resolve) {
+      lookupImages(title, expectedRuntime, resolve);
+    });
 
-    // if TMDb had nothing usable, try the cinema's own website poster
+    // if TMDb had nothing usable (or nothing we could confirm was the
+    // right film), try the cinema's own website poster
     if (!images || (!images.backdrop && !images.poster)) {
       images = await lookupStationFallback(title);
     }

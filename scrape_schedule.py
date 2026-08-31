@@ -5,10 +5,17 @@ Scrapes https://www.stationcinema.com/whatson/all
 APPROACH: Film titles are in <h1> tags. Dates and times follow each film block.
 This completely avoids genre-line false positives.
 
-CHANGE: also captures each film's poster image URL (the <img src="..."> that
-appears immediately before its <h1> on the listings page) and writes it to
-event_codes.json (kept that filename for compatibility, but it now stores
-{title: full_poster_image_url} rather than a code).
+Also captures, per film:
+- poster image URL (the <img src="..."> immediately before its <h1>), written
+  to event_codes.json (name kept for compatibility) as {title: image_url}.
+  See "FIX (v2)" below for why this isn't built from an /event/{code} link.
+- running time in minutes (from the "Running time: NN mins" line right after
+  the title), written to new_this_week.json as {..., "runtimes": {title: mins}}.
+  This lets slideshow.js confirm a TMDb search result is actually the right
+  film before using its artwork - generic one-word titles like "Lady" can
+  collide with a completely different film of the same name (there are two
+  different 2025/2026 films both called "Lady"), and TMDb's top search hit
+  isn't guaranteed to be the one Station is actually showing.
 
 FIX (v2): the listings page does NOT use /event/{code} links anywhere - that
 pattern only exists on individual event detail pages. The actual poster image
@@ -16,8 +23,7 @@ is embedded directly, in one of two URL shapes depending on the film:
   https://stationcinema.admit-one.eu//sites/STATIONCINEMA/STATIONCINEMA/eventImages/{code}_{n}.jpg
   https://images.admit-one.eu//filmimages/small/{code}.jpg
 (the eventImages suffix is a variable index like _0 or _1, not always _0).
-We now match either shape directly and store the real, working image URL, so
-slideshow.js doesn't need to guess/try multiple constructed URL patterns.
+We match either shape directly and store the real, working image URL.
 """
 import re, urllib.request, sys, json
 from datetime import datetime
@@ -29,11 +35,12 @@ MONTHS = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
 MONTH_NAMES = ["January","February","March","April","May","June",
 "July","August","September","October","November","December"]
 
-# Matches the poster <img src="..."> in either of the two shapes the site uses.
 POSTER_IMG_PAT = re.compile(
     r'src="([^"]*(?:eventImages/\d+_\d+\.jpg|filmimages/small/\d+\.jpg))"'
 )
 EVENT_LOOKBACK_CHARS = 1200  # how far before each <h1> to search for its poster image
+RUNTIME_PAT = re.compile(r'Running time:\s*(\d+)\s*mins?', re.IGNORECASE)
+RUNTIME_LOOKAHEAD_CHARS = 300  # how far after each <h1> to search for its runtime
 
 
 def clean_title(s):
@@ -71,7 +78,7 @@ def extract_showtimes(html):
     start = html.find('Showtimes', soldout_idx if soldout_idx > 0 else 0)
     if start == -1:
         print("ERROR: Cannot find Showtimes section")
-        return {}, {}
+        return {}, {}, {}
     end = html.find('Check Our Socials', start)
     section = html[start:end if end > start else len(html)]
     print(f"Section: {len(section)} chars")
@@ -98,6 +105,7 @@ def extract_showtimes(html):
 
     schedule = defaultdict(lambda: defaultdict(set))
     poster_urls = {}
+    runtimes = {}
 
     for i, h1_match in enumerate(h1_matches):
         raw_title = strip_tags(h1_match.group(1))
@@ -106,11 +114,7 @@ def extract_showtimes(html):
             continue
         print(f"  Film: {film}")
 
-        # --- find this film's poster image URL ---
-        # The poster <img> sits immediately before this film's <h1> in the
-        # listings markup. Take the last match in the lookback window (i.e.
-        # the one closest to this h1), so we don't accidentally grab the
-        # previous film's poster.
+        # --- poster image URL: nearest matching <img> before this <h1> ---
         lookback_start = max(0, h1_match.start() - EVENT_LOOKBACK_CHARS)
         lookback_chunk = section[lookback_start:h1_match.start()]
         img_matches = POSTER_IMG_PAT.findall(lookback_chunk)
@@ -128,6 +132,13 @@ def extract_showtimes(html):
         block = section[block_start:block_end]
         block_text = strip_tags(block)
 
+        # --- runtime: "Running time: NN mins" near the top of this block ---
+        if film not in runtimes:
+            rt_match = RUNTIME_PAT.search(block_text[:RUNTIME_LOOKAHEAD_CHARS])
+            if rt_match:
+                runtimes[film] = int(rt_match.group(1))
+        # --- end ---
+
         seen = set()
         for dm in DATE_PAT.finditer(block_text):
             month = MONTHS.get(dm.group(3).lower(), 0)
@@ -144,7 +155,7 @@ def extract_showtimes(html):
                 for t in set(times):
                     schedule[date_key][film].add(t)
 
-    return schedule, poster_urls
+    return schedule, poster_urls, runtimes
 
 
 def is_uk_bank_holiday():
@@ -189,7 +200,7 @@ def render_js(schedule):
     return "\n".join(lines)
 
 
-def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_this_week.json"):
+def update_new_this_week(schedule, runtimes, seen_path="seen_films.json", new_path="new_this_week.json"):
     try:
         with open(seen_path, "r", encoding="utf-8") as f:
             seen = json.load(f)
@@ -212,8 +223,13 @@ def update_new_this_week(schedule, seen_path="seen_films.json", new_path="new_th
         if t in all_titles and datetime.strptime(first_seen, "%Y-%m-%d").timestamp() >= cutoff
     ]
 
+    new_runtimes = {t: runtimes[t] for t in new_titles if t in runtimes}
+
     with open(new_path, "w", encoding="utf-8") as f:
-        json.dump({"generated": today, "films": sorted(new_titles)}, f, indent=2, ensure_ascii=False)
+        json.dump(
+            {"generated": today, "films": sorted(new_titles), "runtimes": new_runtimes},
+            f, indent=2, ensure_ascii=False
+        )
 
     print(f"New this week: {new_titles}")
 
@@ -234,7 +250,7 @@ if __name__ == "__main__":
     print(f"Fetching {URL}")
     html = fetch_page()
     print(f"Page: {len(html)} chars")
-    schedule, poster_urls = extract_showtimes(html)
+    schedule, poster_urls, runtimes = extract_showtimes(html)
     if not schedule:
         print("WARNING: No schedule data found")
         sys.exit(1)
@@ -242,6 +258,6 @@ if __name__ == "__main__":
     print(f"Found {total} showings across {len(schedule)} days")
     with open("schedule.js", "w", encoding="utf-8") as f:
         f.write(render_js(schedule))
-    update_new_this_week(schedule)
+    update_new_this_week(schedule, runtimes)
     write_event_codes(poster_urls)
     print("Done")
