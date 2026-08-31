@@ -5,6 +5,9 @@ new-this-week film posters (TMDB, falling back to the cinema's own
 website poster if TMDB has nothing OR its top match isn't confirmed
 as the right film) -> uploaded videos (from Supabase "uploads/"
 folder) -> loop.
+
+Each poster slide's badge (e.g. "NEW THIS WEEK") can be manually overridden
+per-film from exclude.html - see getFilmConfig() / CATEGORY_BADGE_TEXT.
 ============================================================ */
 
 var supabaseClient = null;
@@ -145,17 +148,30 @@ async function listBucketFiles(folder) {
   }
 }
 
-async function getExcludedTitles() {
+// Staff-editable config from exclude.html: which films to hide from the
+// carousel, and an optional manual badge override per film (e.g. "on_sale_now")
+// for when the automatic New This Week / Coming Soon logic isn't what's wanted.
+var CATEGORY_BADGE_TEXT = {
+  new_this_week: "NEW THIS WEEK",
+  now_showing: "NOW SHOWING",
+  coming_soon: "COMING SOON",
+  on_sale_now: "ON SALE NOW"
+};
+
+async function getFilmConfig() {
   var sb = getSupabase();
-  if (!sb) return [];
+  if (!sb) return { excludedLower: [], categories: {} };
   try {
     var { data: pub } = sb.storage.from(window.SUPABASE_BUCKET).getPublicUrl("config/excluded_films.json");
     var res = await fetch(pub.publicUrl + "?_=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) return [];
+    if (!res.ok) return { excludedLower: [], categories: {} };
     var json = await res.json().catch(function () { return null; });
-    return (json && json.excluded) ? json.excluded.map(function (t) { return t.toLowerCase(); }) : [];
+    return {
+      excludedLower: (json && json.excluded) ? json.excluded.map(function (t) { return t.toLowerCase(); }) : [],
+      categories: (json && json.categories) || {}
+    };
   } catch (e) {
-    return [];
+    return { excludedLower: [], categories: {} };
   }
 }
 
@@ -165,9 +181,10 @@ async function loadNewFilmPosters() {
   var data = await res.json().catch(function () { return null; });
   if (!data || !data.films || !data.films.length) return [];
 
-  var excluded = await getExcludedTitles();
-  var titles = data.films.filter(function (t) { return excluded.indexOf(t.toLowerCase()) === -1; });
+  var filmConfig = await getFilmConfig();
+  var titles = data.films.filter(function (t) { return filmConfig.excludedLower.indexOf(t.toLowerCase()) === -1; });
   var runtimes = data.runtimes || {};
+  var categories = filmConfig.categories;
 
   var slides = [];
   for (var i = 0; i < titles.length; i++) {
@@ -184,12 +201,20 @@ async function loadNewFilmPosters() {
     }
 
     if (images && (images.backdrop || images.poster)) {
+      // Manual category override (set on exclude.html) takes precedence over
+      // the automatic New This Week / Coming Soon badge computed from TMDb.
+      var overrideCategory = categories[title];
+      var badgeText = overrideCategory && CATEGORY_BADGE_TEXT[overrideCategory]
+        ? CATEGORY_BADGE_TEXT[overrideCategory]
+        : (images.comingSoon ? "COMING SOON" : "NEW THIS WEEK");
+
       slides.push({
         type: "poster",
         title: title,
         backdropUrl: images.isFallbackUrl ? "" : tmdbImageUrl(images.backdrop, 1280),
         posterUrl: images.isFallbackUrl ? images.poster : tmdbImageUrl(images.poster, 500),
-        comingSoon: images.comingSoon
+        comingSoon: images.comingSoon,
+        badgeText: badgeText
       });
     }
   }
@@ -251,8 +276,9 @@ function renderSlide(slide, container) {
     wrap.appendChild(logo);
 
     var label = document.createElement("div");
-    label.className = "slide-new-badge" + (slide.comingSoon ? " coming-soon" : "");
-    label.textContent = slide.comingSoon ? "COMING SOON" : "NEW THIS WEEK";
+    var badgeText = slide.badgeText || (slide.comingSoon ? "COMING SOON" : "NEW THIS WEEK");
+    label.className = "slide-new-badge" + (badgeText === "COMING SOON" ? " coming-soon" : "");
+    label.textContent = badgeText;
     wrap.appendChild(label);
 
     var footer = document.createElement("div");
