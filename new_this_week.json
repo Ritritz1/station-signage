@@ -1,19 +1,15 @@
 {
-  "generated": "2026-09-02",
+  "generated": "2026-09-08",
   "films": [
-    "Breakfast with Santa: The Snowman & Snowdog",
-    "Comedy & Curry Night",
-    "Die Hard - Dog Friendly Christmas Party",
-    "Don't look back in anger",
-    "Relaxed Screening Toy Story 5",
-    "The Incomer"
+    "Dog Friendly: Sense & Sensibility",
+    "Practical Magic 2",
+    "Sense And Sensibility",
+    "Shaun the Sheep: The Beast of Mossy Bottom"
   ],
   "runtimes": {
-    "Breakfast with Santa: The Snowman & Snowdog": 60,
-    "Comedy & Curry Night": 100,
-    "Die Hard - Dog Friendly Christmas Party": 131,
-    "Don't look back in anger": 125,
-    "Relaxed Screening Toy Story 5": 102,
-    "The Incomer": 102
+    "Dog Friendly: Sense & Sensibility": 100,
+    "Practical Magic 2": 104,
+    "Sense And Sensibility": 132,
+    "Shaun the Sheep: The Beast of Mossy Bottom": 93
   }
 }
