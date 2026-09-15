@@ -1,15 +1,11 @@
 {
-  "generated": "2026-09-09",
+  "generated": "2026-09-15",
   "films": [
-    "Dog Friendly: Sense & Sensibility",
-    "Practical Magic 2",
-    "Sense And Sensibility",
-    "Shaun the Sheep: The Beast of Mossy Bottom"
+    "Bad Apples",
+    "Bitter Christmas"
   ],
   "runtimes": {
-    "Dog Friendly: Sense & Sensibility": 100,
-    "Practical Magic 2": 104,
-    "Sense And Sensibility": 132,
-    "Shaun the Sheep: The Beast of Mossy Bottom": 93
+    "Bad Apples": 101,
+    "Bitter Christmas": 111
   }
 }
