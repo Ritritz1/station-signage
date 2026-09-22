@@ -1,11 +1,11 @@
 {
-  "generated": "2026-09-16",
+  "generated": "2026-09-22",
   "films": [
-    "Bad Apples",
-    "Bitter Christmas"
+    "DE GAULLE: LIBERTE",
+    "It's Nice Up North - Q&A"
   ],
   "runtimes": {
-    "Bad Apples": 101,
-    "Bitter Christmas": 111
+    "DE GAULLE: LIBERTE": 180,
+    "It's Nice Up North - Q&A": 120
   }
 }
