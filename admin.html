@@ -124,15 +124,9 @@ let currentSearchFilm = '';
 let schedSha = '';
 
 // Simple password check (SHA-1 of password)
-async function sha1(str) {
-  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-
-async function tryLogin() {
+function tryLogin() {
   const pass = document.getElementById('pass').value;
-  const hash = await sha1(pass);
-  if (hash === '7c4a8d09ca3762af61e59520943dc26494f8941b') {
+  if (btoa(pass) === 'U3RhdGlvbjIwMjQh') {
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display = 'block';
   } else {
@@ -174,12 +168,12 @@ async function loadData() {
     }
 
     status.className = 'status ok';
-    status.textContent = '✓ Connected — ' + Object.keys(schedule).length + ' days loaded';
+    status.textContent = 'â Connected â ' + Object.keys(schedule).length + ' days loaded';
     renderFilms();
     document.getElementById('main-content').style.display = 'block';
   } catch(e) {
     status.className = 'status err';
-    status.textContent = '✗ ' + e.message;
+    status.textContent = 'â ' + e.message;
   }
 }
 
@@ -210,7 +204,7 @@ async function renderFilms() {
 
   const today = new Date().toISOString().slice(0,10);
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
-  weekLabel.textContent = 'All Films (' + Object.keys(allFilms).length + ' total — this week highlighted)';
+  weekLabel.textContent = 'All Films (' + Object.keys(allFilms).length + ' total â this week highlighted)';
 
   grid.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;padding:8px">Loading film info from TMDB...</div>';
 
@@ -311,7 +305,7 @@ function pickResult(id, title) {
   const key = currentSearchFilm.replace(/[^a-z0-9]/gi,'_');
   const input = document.getElementById('id-' + key);
   if (input) input.value = id;
-  showToast('Set ' + currentSearchFilm + ' → ' + title + ' (#' + id + ')', false);
+  showToast('Set ' + currentSearchFilm + ' â ' + title + ' (#' + id + ')', false);
   closeSearch();
 }
 
@@ -362,14 +356,14 @@ async function saveOverrides() {
       // Also clear TMDB cache so new posters load
       localStorage.removeItem('tmdb_meta_v1');
       saveStatus.className = 'status ok';
-      saveStatus.textContent = '✓ Saved ' + Object.keys(newOverrides).length + ' overrides to GitHub';
+      saveStatus.textContent = 'â Saved ' + Object.keys(newOverrides).length + ' overrides to GitHub';
       showToast('Saved! GitHub Pages will rebuild in ~60 seconds.', false);
     } else {
       throw new Error('GitHub returned ' + putR.status);
     }
   } catch(e) {
     saveStatus.className = 'status err';
-    saveStatus.textContent = '✗ ' + e.message;
+    saveStatus.textContent = 'â ' + e.message;
     showToast(e.message, true);
   }
 }
