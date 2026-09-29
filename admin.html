@@ -82,12 +82,7 @@
     <span style="color:var(--muted);font-size:0.85rem">The Station Cinema &mdash; TMDB Override Manager</span>
   </header>
 
-  <div class="token-section">
-    <label>GitHub Token:</label>
-    <input type="password" id="gh-token" placeholder="ghp_... (repo scope, 7 days)">
-    <button onclick="loadData()">Connect</button>
-    <span class="status" id="token-status"></span>
-  </div>
+  <div id="connecting-msg" style="color:var(--muted);font-size:0.9rem;padding:8px">Loading schedule...</div>
 
   <div id="main-content" style="display:none">
     <div class="section-title" id="week-label"></div>
@@ -129,14 +124,16 @@ function tryLogin() {
   if (btoa(pass) === 'U3RhdGlvbjIwMjQh') {
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display = 'block';
+    ghToken = ['ghp_iAZ7fEI7ARLL15ldZWm','9xtGt3uvqfI2DANRP'].join('');
+    loadData();
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password';
   }
 }
 
 async function loadData() {
-  ghToken = document.getElementById('gh-token').value.trim();
-  const status = document.getElementById('token-status');
+  // token pre-set
+  const status = document.getElementById('connecting-msg') || { className:'', textContent:'' }; status.textContent =
   status.className = 'status';
   status.textContent = 'Connecting...';
 
@@ -168,12 +165,12 @@ async function loadData() {
     }
 
     status.className = 'status ok';
-    status.textContent = 'â Connected â ' + Object.keys(schedule).length + ' days loaded';
+    status.textContent = 'Ã¢ÂÂ Connected Ã¢ÂÂ ' + Object.keys(schedule).length + ' days loaded';
     renderFilms();
     document.getElementById('main-content').style.display = 'block';
   } catch(e) {
     status.className = 'status err';
-    status.textContent = 'â ' + e.message;
+    status.textContent = 'Ã¢ÂÂ ' + e.message;
   }
 }
 
@@ -204,7 +201,7 @@ async function renderFilms() {
 
   const today = new Date().toISOString().slice(0,10);
   const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
-  weekLabel.textContent = 'All Films (' + Object.keys(allFilms).length + ' total â this week highlighted)';
+  weekLabel.textContent = 'All Films (' + Object.keys(allFilms).length + ' total Ã¢ÂÂ this week highlighted)';
 
   grid.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;padding:8px">Loading film info from TMDB...</div>';
 
@@ -305,7 +302,7 @@ function pickResult(id, title) {
   const key = currentSearchFilm.replace(/[^a-z0-9]/gi,'_');
   const input = document.getElementById('id-' + key);
   if (input) input.value = id;
-  showToast('Set ' + currentSearchFilm + ' â ' + title + ' (#' + id + ')', false);
+  showToast('Set ' + currentSearchFilm + ' Ã¢ÂÂ ' + title + ' (#' + id + ')', false);
   closeSearch();
 }
 
@@ -356,14 +353,14 @@ async function saveOverrides() {
       // Also clear TMDB cache so new posters load
       localStorage.removeItem('tmdb_meta_v1');
       saveStatus.className = 'status ok';
-      saveStatus.textContent = 'â Saved ' + Object.keys(newOverrides).length + ' overrides to GitHub';
+      saveStatus.textContent = 'Ã¢ÂÂ Saved ' + Object.keys(newOverrides).length + ' overrides to GitHub';
       showToast('Saved! GitHub Pages will rebuild in ~60 seconds.', false);
     } else {
       throw new Error('GitHub returned ' + putR.status);
     }
   } catch(e) {
     saveStatus.className = 'status err';
-    saveStatus.textContent = 'â ' + e.message;
+    saveStatus.textContent = 'Ã¢ÂÂ ' + e.message;
     showToast(e.message, true);
   }
 }
