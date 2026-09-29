@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Station Cinema - Schedule Admin</title>
+  <style>
+    :root { --bg:#1a1a2e; --panel:#16213e; --accent:#d4a523; --fg:#f0f0f0; --muted:#aaa; --green:#27ae60; --red:#e74c3c; --blue:#3498db; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--fg); font-family:system-ui,sans-serif; min-height:100vh; }
+    #login { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .login-box { background:var(--panel); padding:40px; border-radius:12px; width:340px; text-align:center; }
+    .login-box h1 { color:var(--accent); margin-bottom:8px; font-size:1.4rem; }
+    .login-box p { color:var(--muted); margin-bottom:24px; font-size:0.9rem; }
+    input[type=password] { width:100%; padding:12px; border-radius:8px; border:1px solid #333; background:#0f0f1a; color:var(--fg); font-size:1rem; margin-bottom:12px; }
+    button { background:var(--accent); color:#000; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:700; font-size:1rem; width:100%; }
+    button:hover { opacity:0.85; }
+    .error { color:var(--red); font-size:0.85rem; margin-top:8px; }
+    #app { display:none; padding:24px; max-width:1200px; margin:0 auto; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid #333; }
+    header h1 { color:var(--accent); font-size:1.5rem; }
+    .token-section { background:var(--panel); border-radius:8px; padding:16px; margin-bottom:24px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .token-section label { color:var(--muted); font-size:0.85rem; white-space:nowrap; }
+    .token-section input { flex:1; min-width:200px; padding:8px 12px; border-radius:6px; border:1px solid #333; background:#0f0f1a; color:var(--fg); font-size:0.9rem; }
+    .token-section button { width:auto; padding:8px 16px; font-size:0.9rem; }
+    .status { font-size:0.85rem; color:var(--muted); }
+    .status.ok { color:var(--green); }
+    .status.err { color:var(--red); }
+    .section-title { font-size:1.1rem; font-weight:700; color:var(--accent); margin:24px 0 12px; }
+    .film-grid { display:grid; gap:12px; }
+    .film-card { background:var(--panel); border-radius:10px; padding:16px; display:grid; grid-template-columns:60px 1fr auto; gap:12px; align-items:center; border:1px solid #222; }
+    .film-card:hover { border-color:#444; }
+    .poster { width:60px; height:90px; border-radius:6px; object-fit:cover; background:#111; }
+    .poster-placeholder { width:60px; height:90px; border-radius:6px; background:#111; display:flex; align-items:center; justify-content:center; color:#444; font-size:1.5rem; }
+    .film-info h3 { font-size:1rem; margin-bottom:4px; }
+    .film-info .tmdb-title { color:var(--muted); font-size:0.85rem; margin-bottom:4px; }
+    .film-info .dates { color:var(--muted); font-size:0.8rem; }
+    .film-actions { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+    .id-input { display:flex; gap:6px; align-items:center; }
+    .id-input input { width:100px; padding:6px 10px; border-radius:6px; border:1px solid #333; background:#0f0f1a; color:var(--fg); font-size:0.9rem; text-align:center; }
+    .btn-sm { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:0.8rem; font-weight:600; }
+    .btn-search { background:var(--blue); color:#fff; }
+    .btn-save { background:var(--green); color:#fff; }
+    .btn-clear { background:#555; color:#fff; }
+    .current-id { font-size:0.75rem; color:var(--muted); }
+    .current-id span { color:var(--accent); font-family:monospace; }
+    .search-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:100; align-items:center; justify-content:center; }
+    .search-modal.open { display:flex; }
+    .search-box { background:var(--panel); border-radius:12px; padding:24px; width:90%; max-width:600px; max-height:80vh; overflow-y:auto; }
+    .search-box h2 { color:var(--accent); margin-bottom:16px; }
+    .search-row { display:flex; gap:8px; margin-bottom:16px; }
+    .search-row input { flex:1; padding:10px; border-radius:6px; border:1px solid #333; background:#0f0f1a; color:var(--fg); }
+    .search-row button { padding:10px 16px; }
+    .result-item { display:grid; grid-template-columns:50px 1fr auto; gap:10px; align-items:center; padding:10px; border-radius:8px; cursor:pointer; border:1px solid transparent; margin-bottom:6px; }
+    .result-item:hover { background:#0f0f1a; border-color:#333; }
+    .result-item img { width:50px; height:75px; object-fit:cover; border-radius:4px; background:#111; }
+    .result-info strong { display:block; font-size:0.95rem; }
+    .result-info small { color:var(--muted); font-size:0.8rem; }
+    .btn-pick { background:var(--accent); color:#000; padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:700; font-size:0.8rem; white-space:nowrap; }
+    .saving { opacity:0.5; pointer-events:none; }
+    .toast { position:fixed; bottom:24px; right:24px; background:var(--green); color:#fff; padding:12px 20px; border-radius:8px; font-weight:600; display:none; z-index:200; }
+    .toast.err { background:var(--red); }
+    .toast.show { display:block; }
+    .close-modal { float:right; background:none; border:none; color:var(--muted); font-size:1.5rem; cursor:pointer; }
+  </style>
+</head>
+<body>
+
+<div id="login">
+  <div class="login-box">
+    <h1>&#127916; Station Cinema</h1>
+    <p>Schedule Admin Panel</p>
+    <input type="password" id="pass" placeholder="Password" onkeydown="if(event.key==='Enter')tryLogin()">
+    <button onclick="tryLogin()">Sign In</button>
+    <div class="error" id="login-err"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>&#127916; Schedule Admin</h1>
+    <span style="color:var(--muted);font-size:0.85rem">The Station Cinema &mdash; TMDB Override Manager</span>
+  </header>
+
+  <div class="token-section">
+    <label>GitHub Token:</label>
+    <input type="password" id="gh-token" placeholder="ghp_... (repo scope, 7 days)">
+    <button onclick="loadData()">Connect</button>
+    <span class="status" id="token-status"></span>
+  </div>
+
+  <div id="main-content" style="display:none">
+    <div class="section-title" id="week-label"></div>
+    <div class="film-grid" id="film-grid"></div>
+    <div style="margin-top:24px;text-align:center">
+      <button onclick="saveOverrides()" style="width:auto;padding:12px 32px;font-size:1rem">&#128190; Save All Changes to GitHub</button>
+      <div class="status" id="save-status" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="search-modal" id="search-modal">
+  <div class="search-box">
+    <button class="close-modal" onclick="closeSearch()">&#x2715;</button>
+    <h2>Search TMDB</h2>
+    <div id="searching-for" style="color:var(--muted);margin-bottom:12px;font-size:0.9rem"></div>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="Film title..." onkeydown="if(event.key==='Enter')searchTMDB()">
+      <button onclick="searchTMDB()">Search</button>
+    </div>
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TMDB_KEY = '1ac6070606f4a415fccbfbcbb78fe224';
+const REPO = 'Ritritz1/station-signage';
+let ghToken = '';
+let overrides = {};
+let schedule = {};
+let currentSearchFilm = '';
+let schedSha = '';
+
+// Simple password check (SHA-1 of password)
+async function sha1(str) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function tryLogin() {
+  const pass = document.getElementById('pass').value;
+  const hash = await sha1(pass);
+  if (hash === '7c4a8d09ca3762af61e59520943dc26494f8941b') {
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  } else {
+    document.getElementById('login-err').textContent = 'Incorrect password';
+  }
+}
+
+async function loadData() {
+  ghToken = document.getElementById('gh-token').value.trim();
+  const status = document.getElementById('token-status');
+  status.className = 'status';
+  status.textContent = 'Connecting...';
+
+  try {
+    // Verify token
+    const userR = await fetch('https://api.github.com/user', {
+      headers: { Authorization: 'token ' + ghToken, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!userR.ok) throw new Error('Invalid token');
+
+    // Load schedule.js
+    const schedR = await fetch('https://api.github.com/repos/' + REPO + '/contents/schedule.js', {
+      headers: { Authorization: 'token ' + ghToken, Accept: 'application/vnd.github.v3+json' }
+    });
+    const schedF = await schedR.json();
+    schedSha = schedF.sha;
+    const content = atob(schedF.content.replace(/\n/g,''));
+
+    // Parse overrides
+    overrides = {};
+    const ovMatches = content.matchAll(/TMDB_OVERRIDES\["([^"]+)"\]\s*=\s*\{\s*id:\s*(\d+)/g);
+    for (const m of ovMatches) overrides[m[1]] = parseInt(m[2]);
+
+    // Parse schedule
+    schedule = {};
+    const schedMatch = content.match(/window\.SCHEDULE\s*=\s*(\{[\s\S]+?\}\s*;)/);
+    if (schedMatch) {
+      try { eval('schedule = ' + schedMatch[1]); } catch(e) {}
+    }
+
+    status.className = 'status ok';
+    status.textContent = '✓ Connected — ' + Object.keys(schedule).length + ' days loaded';
+    renderFilms();
+    document.getElementById('main-content').style.display = 'block';
+  } catch(e) {
+    status.className = 'status err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+function getFilmsThisWeek() {
+  // Get all unique films from the schedule, prioritising the next 7 days
+  const today = new Date().toISOString().slice(0,10);
+  const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
+  const allFilms = {};
+  Object.keys(schedule).sort().forEach(date => {
+    schedule[date].forEach(f => {
+      if (!allFilms[f.film]) allFilms[f.film] = { dates: [], thisWeek: false };
+      allFilms[f.film].dates.push(date);
+      if (date >= today && date <= weekEnd) allFilms[f.film].thisWeek = true;
+    });
+  });
+  return allFilms;
+}
+
+async function getTMDBInfo(id) {
+  const r = await fetch('https://api.themoviedb.org/3/movie/' + id + '?api_key=' + TMDB_KEY + '&language=en-GB');
+  return await r.json();
+}
+
+async function renderFilms() {
+  const grid = document.getElementById('film-grid');
+  const weekLabel = document.getElementById('week-label');
+  const allFilms = getFilmsThisWeek();
+
+  const today = new Date().toISOString().slice(0,10);
+  const weekEnd = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
+  weekLabel.textContent = 'All Films (' + Object.keys(allFilms).length + ' total — this week highlighted)';
+
+  grid.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;padding:8px">Loading film info from TMDB...</div>';
+
+  // Sort: this week first, then alphabetical
+  const sorted = Object.entries(allFilms).sort((a,b) => {
+    if (a[1].thisWeek && !b[1].thisWeek) return -1;
+    if (!a[1].thisWeek && b[1].thisWeek) return 1;
+    return a[0].localeCompare(b[0]);
+  });
+
+  grid.innerHTML = '';
+  for (const [film, info] of sorted) {
+    const id = overrides[film];
+    let tmdbData = null;
+    if (id) {
+      try { tmdbData = await getTMDBInfo(id); } catch(e) {}
+    }
+    const card = document.createElement('div');
+    card.className = 'film-card';
+    card.id = 'card-' + film.replace(/[^a-z0-9]/gi,'_');
+    if (info.thisWeek) card.style.borderColor = '#d4a52344';
+
+    const posterHtml = tmdbData?.poster_path
+      ? '<img class="poster" src="https://image.tmdb.org/t/p/w92' + tmdbData.poster_path + '" alt="">'
+      : '<div class="poster-placeholder">&#127902;</div>';
+
+    const tmdbTitle = tmdbData ? (tmdbData.title + ' (' + (tmdbData.release_date||'').slice(0,4) + ')') : (id ? 'ID: ' + id : 'No override set');
+    const dates = info.dates.filter(d => d >= today).slice(0,3).join(', ') + (info.dates.filter(d=>d>=today).length>3?'...':'');
+    const thisWeekBadge = info.thisWeek ? '<span style="background:var(--accent);color:#000;font-size:0.7rem;padding:2px 6px;border-radius:4px;font-weight:700;margin-left:6px">THIS WEEK</span>' : '';
+
+    card.innerHTML = posterHtml + `
+      <div class="film-info">
+        <h3>${film}${thisWeekBadge}</h3>
+        <div class="tmdb-title">${tmdbTitle}</div>
+        <div class="dates">${dates || 'No upcoming dates'}</div>
+      </div>
+      <div class="film-actions">
+        <div class="id-input">
+          <input type="number" id="id-${film.replace(/[^a-z0-9]/gi,'_')}" value="${id||''}" placeholder="TMDB ID">
+          <button class="btn-sm btn-search" onclick="openSearch('${film.replace(/'/g,"\\'")}')">&#128269;</button>
+        </div>
+        <div class="current-id">Current: <span>${id ? '#'+id : 'none'}</span></div>
+        <button class="btn-sm btn-clear" onclick="clearOverride('${film.replace(/'/g,"\\'")}')">Clear</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+function clearOverride(film) {
+  const key = film.replace(/[^a-z0-9]/gi,'_');
+  document.getElementById('id-' + key).value = '';
+  delete overrides[film];
+  showToast('Cleared override for ' + film, false);
+}
+
+function openSearch(film) {
+  currentSearchFilm = film;
+  document.getElementById('searching-for').textContent = 'Finding correct match for: ' + film;
+  document.getElementById('search-input').value = film;
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('search-modal').classList.add('open');
+  searchTMDB();
+}
+
+function closeSearch() {
+  document.getElementById('search-modal').classList.remove('open');
+}
+
+async function searchTMDB() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+  const resultsDiv = document.getElementById('search-results');
+  resultsDiv.innerHTML = '<div style="color:var(--muted)">Searching...</div>';
+
+  const r = await fetch('https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(query) + '&language=en-GB');
+  const data = await r.json();
+
+  if (!data.results?.length) {
+    resultsDiv.innerHTML = '<div style="color:var(--muted)">No results found</div>';
+    return;
+  }
+
+  resultsDiv.innerHTML = data.results.slice(0,8).map(m => `
+    <div class="result-item" onclick="pickResult(${m.id}, '${(m.title||'').replace(/'/g,"\\'")}')">
+      <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92'+m.poster_path : ''}" onerror="this.style.display='none'">
+      <div class="result-info">
+        <strong>${m.title}</strong>
+        <small>${(m.release_date||'').slice(0,4)} &bull; ${m.overview?.slice(0,100)||''}...</small>
+      </div>
+      <button class="btn-pick">Select</button>
+    </div>
+  `).join('');
+}
+
+function pickResult(id, title) {
+  overrides[currentSearchFilm] = id;
+  const key = currentSearchFilm.replace(/[^a-z0-9]/gi,'_');
+  const input = document.getElementById('id-' + key);
+  if (input) input.value = id;
+  showToast('Set ' + currentSearchFilm + ' → ' + title + ' (#' + id + ')', false);
+  closeSearch();
+}
+
+async function saveOverrides() {
+  const saveStatus = document.getElementById('save-status');
+  saveStatus.className = 'status';
+  saveStatus.textContent = 'Saving...';
+
+  // Read all input fields and collect overrides
+  const newOverrides = {};
+  document.querySelectorAll('.film-card').forEach(card => {
+    const input = card.querySelector('input[type=number]');
+    const filmName = card.querySelector('h3').childNodes[0].textContent.trim();
+    if (input && input.value) {
+      newOverrides[filmName] = parseInt(input.value);
+    }
+  });
+
+  try {
+    // Fetch current schedule.js
+    const schedR = await fetch('https://api.github.com/repos/' + REPO + '/contents/schedule.js', {
+      headers: { Authorization: 'token ' + ghToken, Accept: 'application/vnd.github.v3+json' }
+    });
+    const schedF = await schedR.json();
+    let content = atob(schedF.content.replace(/\n/g,''));
+
+    // Remove all existing overrides
+    content = content.replace(/window\.TMDB_OVERRIDES\["[^"]+?"\]\s*=\s*\{[^}]+?\};\n?/g, '');
+
+    // Rebuild override block
+    const overrideBlock = Object.entries(newOverrides)
+      .map(([film, id]) => 'window.TMDB_OVERRIDES["' + film + '"] = { id: ' + id + ' };')
+      .join('\n');
+
+    content = content.replace(
+      'window.TMDB_OVERRIDES = window.TMDB_OVERRIDES || {};',
+      'window.TMDB_OVERRIDES = window.TMDB_OVERRIDES || {};\n' + overrideBlock
+    );
+
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const putR = await fetch('https://api.github.com/repos/' + REPO + '/contents/schedule.js', {
+      method: 'PUT',
+      headers: { Authorization: 'token ' + ghToken, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'fix: update TMDB overrides via admin panel', content: encoded, sha: schedF.sha })
+    });
+
+    if (putR.ok) {
+      // Also clear TMDB cache so new posters load
+      localStorage.removeItem('tmdb_meta_v1');
+      saveStatus.className = 'status ok';
+      saveStatus.textContent = '✓ Saved ' + Object.keys(newOverrides).length + ' overrides to GitHub';
+      showToast('Saved! GitHub Pages will rebuild in ~60 seconds.', false);
+    } else {
+      throw new Error('GitHub returned ' + putR.status);
+    }
+  } catch(e) {
+    saveStatus.className = 'status err';
+    saveStatus.textContent = '✗ ' + e.message;
+    showToast(e.message, true);
+  }
+}
+
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// Close modal on backdrop click
+document.getElementById('search-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeSearch();
+});
+</script>
+</body>
+</html>
