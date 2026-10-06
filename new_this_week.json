@@ -1,11 +1,15 @@
 {
-  "generated": "2026-09-30",
+  "generated": "2026-10-06",
   "films": [
-    "Digger",
-    "Verity"
+    "Comédie Française",
+    "Heart Of The Beast",
+    "THE LOST CHILDREN OF TUAM",
+    "THE UPRISING"
   ],
   "runtimes": {
-    "Digger": 128,
-    "Verity": 114
+    "Comédie Française": 75,
+    "Heart Of The Beast": 100,
+    "THE LOST CHILDREN OF TUAM": 84,
+    "THE UPRISING": 128
   }
 }
