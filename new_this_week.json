@@ -1,15 +1,15 @@
 {
-  "generated": "2026-10-07",
+  "generated": "2026-10-13",
   "films": [
-    "Comédie Française",
-    "Heart Of The Beast",
-    "THE LOST CHILDREN OF TUAM",
-    "THE UPRISING"
+    "DRACULA 4K RESTORATION",
+    "TENZING",
+    "Tad and the Magic Lamp",
+    "The Yellow Tie"
   ],
   "runtimes": {
-    "Comédie Française": 75,
-    "Heart Of The Beast": 100,
-    "THE LOST CHILDREN OF TUAM": 84,
-    "THE UPRISING": 128
+    "DRACULA 4K RESTORATION": 82,
+    "TENZING": 128,
+    "Tad and the Magic Lamp": 94,
+    "The Yellow Tie": 145
   }
 }
