@@ -1,13 +1,11 @@
 {
-  "generated": "2026-10-21",
+  "generated": "2026-10-27",
   "films": [
-    "Andrew Lloyd Webber's Starlight Express - Live On Stage",
-    "Forgotten Island",
-    "Ghosts: The Possession Of Button House"
+    "Fatherland",
+    "Wicker"
   ],
   "runtimes": {
-    "Andrew Lloyd Webber's Starlight Express - Live On Stage": 123,
-    "Forgotten Island": 109,
-    "Ghosts: The Possession Of Button House": 100
+    "Fatherland": 82,
+    "Wicker": 105
   }
 }
