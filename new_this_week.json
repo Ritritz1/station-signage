@@ -1,13 +1,15 @@
 {
-  "generated": "2026-11-04",
+  "generated": "2026-11-10",
   "films": [
-    "I Play Rocky",
-    "Onwards and Sideways",
-    "Wild Horse Nine"
+    "Avengers: Doomsday",
+    "EBENEZER",
+    "EBENEZER - Subtitled",
+    "Wicker - Subtitled"
   ],
   "runtimes": {
-    "I Play Rocky": 127,
-    "Onwards and Sideways": 115,
-    "Wild Horse Nine": 116
+    "Avengers: Doomsday": 165,
+    "EBENEZER": 115,
+    "EBENEZER - Subtitled": 115,
+    "Wicker - Subtitled": 105
   }
 }
