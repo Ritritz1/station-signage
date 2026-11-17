@@ -1,17 +1,13 @@
 {
-  "generated": "2026-11-11",
+  "generated": "2026-11-17",
   "films": [
-    "Avengers: Doomsday",
-    "EBENEZER",
-    "EBENEZER - Subtitled",
+    "A Talent for Murder",
     "Little Elves Cardboard Workshop",
-    "Wicker - Subtitled"
+    "The Hunger Games: Sunrise On The Reaping"
   ],
   "runtimes": {
-    "Avengers: Doomsday": 165,
-    "EBENEZER": 115,
-    "EBENEZER - Subtitled": 115,
-    "Wicker - Subtitled": 105,
-    "Little Elves Cardboard Workshop": 120
+    "Little Elves Cardboard Workshop": 120,
+    "A Talent for Murder": 106,
+    "The Hunger Games: Sunrise On The Reaping": 158
   }
 }
